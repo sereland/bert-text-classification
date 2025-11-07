@@ -145,7 +145,13 @@ class ModelTrainer:
         self.train_history = {
             'train_loss': [],
             'val_loss': [],
-            'val_metrics': []
+            'val_metrics': [],
+            'train_steps': [],      # 记录训练步数
+            'val_steps': [],        # 记录验证步数
+            'learning_rates': [],    # 记录学习率
+            'best_step': None,     # 记录最佳模型的步数
+            'best_epoch': None,    # 记录最佳模型的epoch
+            'best_metrics': None   # 记录最佳指标
         }
     
     def _create_optimizer(self) -> torch.optim.Optimizer:
@@ -314,6 +320,10 @@ class ModelTrainer:
                     avg_loss = epoch_train_loss / step_count if step_count > 0 else loss.item()
                     current_lr = self.optimizer.param_groups[0]['lr']
                     logger.info(f"Global Step {global_step} - 训练损失: {avg_loss:.4f}, 学习率: {current_lr:.2e}")
+                    
+                    # 记录训练历史详细信息
+                    self.train_history['train_steps'].append(global_step)
+                    self.train_history['learning_rates'].append(current_lr)
                 
                 # 定期保存检查点
                 if hasattr(self.config, 'SAVE_STEPS') and global_step % self.config.SAVE_STEPS == 0:
@@ -325,6 +335,7 @@ class ModelTrainer:
                     val_loss, val_metrics = self.evaluate()
                     self.train_history['val_loss'].append(val_loss)
                     self.train_history['val_metrics'].append(val_metrics)
+                    self.train_history['val_steps'].append(global_step)
                     
                     logger.info(f"Global Step {global_step} - 训练损失: {loss.item():.4f}, 验证损失: {val_loss:.4f}")
                     logger.info(f"验证指标: {val_metrics}")
@@ -332,8 +343,11 @@ class ModelTrainer:
                     # 保存最佳模型
                     if val_loss < best_val_loss:
                         best_val_loss = val_loss
+                        self.train_history['best_step'] = global_step
+                        self.train_history['best_epoch'] = epoch + 1
+                        self.train_history['best_metrics'] = val_metrics
                         self.save_model(f"best_model_step_{global_step}.pt")
-                        logger.info(f"最佳模型已保存: best_model_step_{global_step}.pt")
+                        logger.info(f"最佳模型已保存: best_model_step_{global_step}.pt (Step: {global_step}, Epoch: {epoch + 1})")
                     
                     # 早停检查
                     if self.early_stopping is not None:
@@ -353,6 +367,7 @@ class ModelTrainer:
                 val_loss, val_metrics = self.evaluate()
                 self.train_history['val_loss'].append(val_loss)
                 self.train_history['val_metrics'].append(val_metrics)
+                self.train_history['val_steps'].append(global_step)
                 
                 logger.info(f"Epoch {epoch + 1} 完成 - 训练损失: {avg_train_loss:.4f}, 验证损失: {val_loss:.4f}")
                 logger.info(f"验证指标: {val_metrics}")
@@ -360,8 +375,11 @@ class ModelTrainer:
                 # 保存最佳模型
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
+                    self.train_history['best_step'] = global_step
+                    self.train_history['best_epoch'] = epoch + 1
+                    self.train_history['best_metrics'] = val_metrics
                     self.save_model(f"best_model_epoch_{epoch + 1}.pt")
-                    logger.info(f"最佳模型已保存: best_model_epoch_{epoch + 1}.pt")
+                    logger.info(f"最佳模型已保存: best_model_epoch_{epoch + 1}.pt (Step: {global_step}, Epoch: {epoch + 1})")
                 
                 # 早停检查
                 if self.early_stopping is not None:
