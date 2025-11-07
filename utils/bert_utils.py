@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from transformers import AutoModel, AutoTokenizer, AdamW, get_linear_schedule_with_warmup
+from torch.optim import AdamW
+from transformers import AutoModel, AutoTokenizer, get_linear_schedule_with_warmup
 from transformers import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
