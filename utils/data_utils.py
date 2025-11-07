@@ -113,10 +113,10 @@ class DataProcessor:
             文本列表和标签列表的元组
         """
         # 检查必要的列是否存在
-        missing_cols = [col for col in self.text_columns + [self.label_column] 
-                        if col not in df.columns]
-        if missing_cols:
-            raise ValueError(f"数据框中缺少以下列: {missing_cols}")
+        # missing_cols = [col for col in self.text_columns + [self.label_column] 
+        #                 if col not in df.columns]
+        # if missing_cols:
+        #     raise ValueError(f"数据框中缺少以下列: {missing_cols}")
         
         # 合并文本列
         texts = []
