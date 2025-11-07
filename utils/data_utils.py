@@ -95,7 +95,7 @@ class DataProcessor:
             DataFrame
         """
         try:
-            df = pd.read_csv(file_path, delimiter='\t', header=None)
+            df = pd.read_csv(file_path, delimiter='\t')
             logger.info(f"成功加载数据文件: {file_path}, 形状: {df.shape}")
             return df
         except Exception as e:
