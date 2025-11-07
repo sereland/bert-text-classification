@@ -207,7 +207,6 @@ class ModelTrainer:
             return nn.MSELoss()
         else:
             raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
-        return total_loss / len(self.train_dataloader)
     
     def evaluate(self) -> Tuple[float, Dict[str, float]]:
         """
@@ -256,6 +255,7 @@ class ModelTrainer:
             )
         
         return avg_loss, metrics
+    
     def train(self) -> Dict[str, List[float]]:
         """
         训练模型
@@ -309,6 +309,17 @@ class ModelTrainer:
                 # 更新进度条
                 progress_bar.set_postfix({'loss': loss.item()})
                 
+                # 定期日志记录
+                if hasattr(self.config, 'LOGGING_STEPS') and global_step % self.config.LOGGING_STEPS == 0:
+                    avg_loss = epoch_train_loss / step_count if step_count > 0 else loss.item()
+                    current_lr = self.optimizer.param_groups[0]['lr']
+                    logger.info(f"Global Step {global_step} - 训练损失: {avg_loss:.4f}, 学习率: {current_lr:.2e}")
+                
+                # 定期保存检查点
+                if hasattr(self.config, 'SAVE_STEPS') and global_step % self.config.SAVE_STEPS == 0:
+                    self.save_model(f"checkpoint_step_{global_step}.pt")
+                    logger.info(f"检查点已保存: checkpoint_step_{global_step}.pt")
+                
                 # 定期验证
                 if self.val_dataloader is not None and hasattr(self.config, 'EVAL_STEPS') and global_step % self.config.EVAL_STEPS == 0:
                     val_loss, val_metrics = self.evaluate()
@@ -322,6 +333,7 @@ class ModelTrainer:
                     if val_loss < best_val_loss:
                         best_val_loss = val_loss
                         self.save_model(f"best_model_step_{global_step}.pt")
+                        logger.info(f"最佳模型已保存: best_model_step_{global_step}.pt")
                     
                     # 早停检查
                     if self.early_stopping is not None:
@@ -349,6 +361,7 @@ class ModelTrainer:
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     self.save_model(f"best_model_epoch_{epoch + 1}.pt")
+                    logger.info(f"最佳模型已保存: best_model_epoch_{epoch + 1}.pt")
                 
                 # 早停检查
                 if self.early_stopping is not None:
@@ -359,7 +372,6 @@ class ModelTrainer:
                 logger.info(f"Epoch {epoch + 1} 完成 - 训练损失: {avg_train_loss:.4f}")
         
         logger.info("训练完成")
-        return self.train_history
         return self.train_history
     
     def save_model(self, filename: str):

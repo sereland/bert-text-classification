@@ -63,11 +63,13 @@ def setup_args():
     
     # 保存参数
     parser.add_argument("--save_dir", type=str, default="checkpoints",
-                       help="模型保存目录")
+                        help="模型保存目录")
     parser.add_argument("--save_steps", type=int, default=500,
-                       help="保存步数")
+                        help="保存步数")
     parser.add_argument("--eval_steps", type=int, default=100,
-                       help="评估步数")
+                        help="评估步数")
+    parser.add_argument("--logging_steps", type=int, default=50,
+                        help="日志记录步数")
     
     # 早停参数
     parser.add_argument("--early_stopping", action="store_true",
@@ -216,6 +218,7 @@ def main():
         'SAVE_DIR': args.save_dir,
         'SAVE_STEPS': args.save_steps,
         'EVAL_STEPS': args.eval_steps,
+        'LOGGING_STEPS': args.logging_steps,
         'EARLY_STOPPING': args.early_stopping,
         'PATIENCE': args.patience
     })
