@@ -207,49 +207,6 @@ class ModelTrainer:
             return nn.MSELoss()
         else:
             raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
-    
-    def train_epoch(self) -> float:
-        """
-        训练一个epoch
-        
-        Returns:
-            平均训练损失
-        """
-        self.model.train()
-        total_loss = 0.0
-        
-        progress_bar = tqdm(self.train_dataloader, desc="训练")
-        
-        for batch in progress_bar:
-            # 将数据移动到设备
-            batch = {k: v.to(self.device) for k, v in batch.items()}
-            
-            # 前向传播
-            outputs = self.model(**batch)
-            loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
-            
-            # 反向传播
-            loss.backward()
-            
-            # 梯度裁剪
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-            
-            # 优化器步骤
-            self.optimizer.step()
-            
-            # 调度器步骤
-            if self.scheduler is not None:
-                self.scheduler.step()
-            
-            # 清零梯度
-            self.optimizer.zero_grad()
-            
-            # 累计损失
-            total_loss += loss.item()
-            
-            # 更新进度条
-            progress_bar.set_postfix({'loss': loss.item()})
-        
         return total_loss / len(self.train_dataloader)
     
     def evaluate(self) -> Tuple[float, Dict[str, float]]:
@@ -299,7 +256,6 @@ class ModelTrainer:
             )
         
         return avg_loss, metrics
-    
     def train(self) -> Dict[str, List[float]]:
         """
         训练模型
@@ -310,21 +266,83 @@ class ModelTrainer:
         logger.info("开始训练...")
         
         best_val_loss = float('inf')
+        global_step = 0
         
         for epoch in range(self.config.NUM_EPOCHS):
             logger.info(f"Epoch {epoch + 1}/{self.config.NUM_EPOCHS}")
             
-            # 训练
-            train_loss = self.train_epoch()
-            self.train_history['train_loss'].append(train_loss)
+            self.model.train()
+            epoch_train_loss = 0.0
+            step_count = 0
             
-            # 验证
-            if self.val_dataloader is not None:
+            progress_bar = tqdm(self.train_dataloader, desc="训练")
+            
+            for batch_idx, batch in enumerate(progress_bar):
+                # 将数据移动到设备
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+                
+                # 前向传播
+                outputs = self.model(**batch)
+                loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
+                
+                # 反向传播
+                loss.backward()
+                
+                # 梯度裁剪
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                
+                # 优化器步骤
+                self.optimizer.step()
+                
+                # 调度器步骤
+                if self.scheduler is not None:
+                    self.scheduler.step()
+                
+                # 清零梯度
+                self.optimizer.zero_grad()
+                
+                # 累计损失
+                epoch_train_loss += loss.item()
+                step_count += 1
+                global_step += 1
+                
+                # 更新进度条
+                progress_bar.set_postfix({'loss': loss.item()})
+                
+                # 定期验证
+                if self.val_dataloader is not None and hasattr(self.config, 'EVAL_STEPS') and global_step % self.config.EVAL_STEPS == 0:
+                    val_loss, val_metrics = self.evaluate()
+                    self.train_history['val_loss'].append(val_loss)
+                    self.train_history['val_metrics'].append(val_metrics)
+                    
+                    logger.info(f"Global Step {global_step} - 训练损失: {loss.item():.4f}, 验证损失: {val_loss:.4f}")
+                    logger.info(f"验证指标: {val_metrics}")
+                    
+                    # 保存最佳模型
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        self.save_model(f"best_model_step_{global_step}.pt")
+                    
+                    # 早停检查
+                    if self.early_stopping is not None:
+                        if self.early_stopping(-val_loss):  # 使用负损失，因为我们要最大化
+                            logger.info(f"早停触发，在第 {global_step} 步停止训练")
+                            return self.train_history
+                    
+                    # 恢复训练模式
+                    self.model.train()
+            
+            # 计算平均训练损失
+            avg_train_loss = epoch_train_loss / step_count if step_count > 0 else 0.0
+            self.train_history['train_loss'].append(avg_train_loss)
+            
+            # 如果没有定期验证或最后一个epoch，进行最终验证
+            if self.val_dataloader is not None and (not hasattr(self.config, 'EVAL_STEPS') or global_step % self.config.EVAL_STEPS != 0):
                 val_loss, val_metrics = self.evaluate()
                 self.train_history['val_loss'].append(val_loss)
                 self.train_history['val_metrics'].append(val_metrics)
                 
-                logger.info(f"训练损失: {train_loss:.4f}, 验证损失: {val_loss:.4f}")
+                logger.info(f"Epoch {epoch + 1} 完成 - 训练损失: {avg_train_loss:.4f}, 验证损失: {val_loss:.4f}")
                 logger.info(f"验证指标: {val_metrics}")
                 
                 # 保存最佳模型
@@ -338,9 +356,10 @@ class ModelTrainer:
                         logger.info(f"早停触发，在第 {epoch + 1} 个epoch停止训练")
                         break
             else:
-                logger.info(f"训练损失: {train_loss:.4f}")
+                logger.info(f"Epoch {epoch + 1} 完成 - 训练损失: {avg_train_loss:.4f}")
         
         logger.info("训练完成")
+        return self.train_history
         return self.train_history
     
     def save_model(self, filename: str):
