@@ -226,7 +226,7 @@ class ModelTrainer:
             
             # 前向传播
             outputs = self.model(**batch)
-            loss = outputs.loss if hasattr(outputs, 'loss') else self.criterion(outputs.logits, batch['labels'])
+            loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
             
             # 反向传播
             loss.backward()
@@ -271,16 +271,16 @@ class ModelTrainer:
                 
                 # 前向传播
                 outputs = self.model(**batch)
-                loss = outputs.loss if hasattr(outputs, 'loss') else self.criterion(outputs.logits, batch['labels'])
+                loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
                 
                 # 累计损失
                 total_loss += loss.item()
                 
                 # 收集预测和标签
                 if self.config.TASK_TYPE == "classification":
-                    predictions = torch.argmax(outputs.logits, dim=-1)
+                    predictions = torch.argmax(outputs['logits'], dim=-1)
                 else:  # regression
-                    predictions = outputs.logits.squeeze()
+                    predictions = outputs['logits'].squeeze()
                 
                 all_predictions.extend(predictions.cpu().numpy())
                 all_labels.extend(batch['labels'].cpu().numpy())
@@ -426,9 +426,9 @@ class ModelPredictor:
                 outputs = self.model(**inputs)
                 
                 if self.config.TASK_TYPE == "classification":
-                    pred = torch.argmax(outputs.logits, dim=-1).item()
+                    pred = torch.argmax(outputs['logits'], dim=-1).item()
                 else:  # regression
-                    pred = outputs.logits.squeeze().item()
+                    pred = outputs['logits'].squeeze().item()
                 
                 predictions.append(pred)
         
@@ -465,7 +465,7 @@ class ModelPredictor:
             # 预测
             with torch.no_grad():
                 outputs = self.model(**inputs)
-                probs = torch.softmax(outputs.logits, dim=-1).cpu().numpy()[0]
+                probs = torch.softmax(outputs['logits'], dim=-1).cpu().numpy()[0]
                 probabilities.append(probs)
         
         return probabilities

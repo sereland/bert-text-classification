@@ -152,9 +152,9 @@ def evaluate_model(config, model, test_dataloader):
             outputs = model(**batch)
             
             if config.TASK_TYPE == "classification":
-                predictions = torch.argmax(outputs.logits, dim=-1).cpu().numpy()
+                predictions = torch.argmax(outputs['logits'], dim=-1).cpu().numpy()
             else:  # regression
-                predictions = outputs.logits.squeeze().cpu().numpy()
+                predictions = outputs['logits'].squeeze().cpu().numpy()
         
         all_predictions.extend(predictions)
         all_labels.extend(labels)
