@@ -332,12 +332,15 @@ class ModelTrainer:
                 
                 # 定期验证
                 if self.val_dataloader is not None and hasattr(self.config, 'EVAL_STEPS') and global_step % self.config.EVAL_STEPS == 0:
+                    # 保存当前训练损失，避免验证过程影响
+                    current_train_loss = epoch_train_loss / step_count if step_count > 0 else loss.item()
+                    
                     val_loss, val_metrics = self.evaluate()
                     self.train_history['val_loss'].append(val_loss)
                     self.train_history['val_metrics'].append(val_metrics)
                     self.train_history['val_steps'].append(global_step)
                     
-                    logger.info(f"Global Step {global_step} - 训练损失: {loss.item():.4f}, 验证损失: {val_loss:.4f}")
+                    logger.info(f"Global Step {global_step} - 训练损失: {current_train_loss:.4f}, 验证损失: {val_loss:.4f}")
                     logger.info(f"验证指标: {val_metrics}")
                     
                     # 保存最佳模型
