@@ -5,6 +5,7 @@ import json
 import torch
 from transformers import AutoTokenizer
 from typing import Optional
+from tqdm import tqdm
 
 # 导入自定义模块
 from config import get_config
@@ -191,6 +192,7 @@ def evaluate_model(config, model, test_dataloader):
 def predict_texts(config, model, texts=None, input_file=None, output_file=None):
     """预测文本"""
     import pandas as pd
+    from utils.bert_utils import MetricsCalculator
     
     # 创建预测器
     tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME)
@@ -218,13 +220,60 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
         # 使用提供的文本列表
         texts_to_predict = texts
     
-    # 预测
-    predictions = predictor.predict(texts_to_predict)
+    # 预测 - 添加进度条
+    logger.info("开始预测...")
+    predictions = []
+    probabilities = []
+    
+    if config.TASK_TYPE == "classification":
+        # 分类任务：逐个预测并显示进度
+        for i, text in enumerate(tqdm(texts_to_predict, desc="预测进度", unit="条")):
+            # 分词和编码
+            inputs = tokenizer(
+                text,
+                truncation=True,
+                padding='max_length',
+                max_length=config.MAX_LENGTH,
+                return_tensors='pt'
+            )
+            
+            # 将数据移动到设备
+            inputs = {k: v.to(config.DEVICE) for k, v in inputs.items()}
+            
+            # 预测
+            with torch.no_grad():
+                outputs = model(**inputs)
+                pred = torch.argmax(outputs['logits'], dim=-1).item()
+                probs = torch.softmax(outputs['logits'], dim=-1).cpu().numpy()[0]
+            
+            predictions.append(pred)
+            probabilities.append(probs)
+    else:
+        # 回归任务：逐个预测并显示进度
+        for i, text in enumerate(tqdm(texts_to_predict, desc="预测进度", unit="条")):
+            # 分词和编码
+            inputs = tokenizer(
+                text,
+                truncation=True,
+                padding='max_length',
+                max_length=config.MAX_LENGTH,
+                return_tensors='pt'
+            )
+            
+            # 将数据移动到设备
+            inputs = {k: v.to(config.DEVICE) for k, v in inputs.items()}
+            
+            # 预测
+            with torch.no_grad():
+                outputs = model(**inputs)
+                pred = outputs['logits'].squeeze().item()
+            
+            predictions.append(pred)
+    
+    logger.info("预测完成")
     
     # 如果是分类任务，也可以获取概率
     if config.TASK_TYPE == "classification":
-        probabilities = predictor.predict_proba(texts_to_predict)
-        
         # 保存预测结果
         if output_file is not None:
             logger.info(f"保存预测结果到: {output_file}")
@@ -251,6 +300,26 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             
             result_df.to_csv(output_file, index=False)
             logger.info(f"预测结果已保存到 {output_file}")
+        
+        # 计算离线指标（如果输入文件包含标签）
+        if input_file is not None and config.LABEL_COLUMN in df.columns:
+            logger.info("计算离线指标...")
+            true_labels = df[config.LABEL_COLUMN].tolist()
+            
+            # 如果是分类任务，需要对标签进行编码
+            if config.TASK_TYPE == "classification":
+                from sklearn.preprocessing import LabelEncoder
+                le = LabelEncoder()
+                true_labels = le.fit_transform(true_labels)
+            
+            metrics = MetricsCalculator.calculate_classification_metrics(true_labels, predictions)
+            logger.info(f"离线指标: {metrics}")
+            
+            # 保存离线指标
+            metrics_file = output_file.replace('.csv', '_metrics.json')
+            with open(metrics_file, 'w', encoding='utf-8') as f:
+                json.dump(metrics, f, ensure_ascii=False, indent=2)
+            logger.info(f"离线指标已保存到: {metrics_file}")
         
         return predictions, probabilities
     else:
@@ -273,6 +342,20 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             
             result_df.to_csv(output_file, index=False)
             logger.info(f"预测结果已保存到 {output_file}")
+        
+        # 计算离线指标（如果输入文件包含标签）
+        if input_file is not None and config.LABEL_COLUMN in df.columns:
+            logger.info("计算离线指标...")
+            true_labels = df[config.LABEL_COLUMN].tolist()
+            
+            metrics = MetricsCalculator.calculate_regression_metrics(true_labels, predictions)
+            logger.info(f"离线指标: {metrics}")
+            
+            # 保存离线指标
+            metrics_file = output_file.replace('.csv', '_metrics.json')
+            with open(metrics_file, 'w', encoding='utf-8') as f:
+                json.dump(metrics, f, ensure_ascii=False, indent=2)
+            logger.info(f"离线指标已保存到: {metrics_file}")
         
         return predictions
 
