@@ -396,7 +396,17 @@ class ModelTrainer:
                         self.train_history['best_metrics'] = val_metrics
                         self.train_history['best_criterion'] = getattr(self.config, 'BEST_MODEL_CRITERION', 'loss')
                         self.save_model(f"best_model_step_{global_step}.pt")
-                        logger.info(f"最佳模型已保存: best_model_step_{global_step}.pt (Step: {global_step}, Epoch: {epoch + 1}, Score: {model_score:.4f})")
+                        
+                        # 根据选择的标准显示合适的值
+                        criterion = getattr(self.config, 'BEST_MODEL_CRITERION', 'loss')
+                        if criterion == 'loss':
+                            display_score = val_loss
+                        elif criterion in ['mse', 'mae', 'rmse']:
+                            display_score = val_metrics.get(criterion, 0.0)
+                        else:
+                            display_score = model_score
+                        
+                        logger.info(f"最佳模型已保存: best_model_step_{global_step}.pt (Step: {global_step}, Epoch: {epoch + 1}, {criterion}: {display_score:.4f})")
                     
                     # 早停检查
                     if self.early_stopping is not None:
@@ -432,7 +442,17 @@ class ModelTrainer:
                     self.train_history['best_metrics'] = val_metrics
                     self.train_history['best_criterion'] = getattr(self.config, 'BEST_MODEL_CRITERION', 'loss')
                     self.save_model(f"best_model_epoch_{epoch + 1}.pt")
-                    logger.info(f"最佳模型已保存: best_model_epoch_{epoch + 1}.pt (Step: {global_step}, Epoch: {epoch + 1}, Score: {model_score:.4f})")
+                    
+                    # 根据选择的标准显示合适的值
+                    criterion = getattr(self.config, 'BEST_MODEL_CRITERION', 'loss')
+                    if criterion == 'loss':
+                        display_score = val_loss
+                    elif criterion in ['mse', 'mae', 'rmse']:
+                        display_score = val_metrics.get(criterion, 0.0)
+                    else:
+                        display_score = model_score
+                    
+                    logger.info(f"最佳模型已保存: best_model_epoch_{epoch + 1}.pt (Step: {global_step}, Epoch: {epoch + 1}, {criterion}: {display_score:.4f})")
                 
                 # 早停检查
                 if self.early_stopping is not None:
