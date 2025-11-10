@@ -23,6 +23,10 @@ class Config:
     WEIGHT_DECAY = 0.01
     WARMUP_RATIO = 0.1
     
+    # 损失函数配置
+    LOSS_FUNCTION = "auto"  # 可选: auto, CrossEntropyLoss, MSELoss, L1Loss, SmoothL1Loss, BCEWithLogitsLoss, KLDivLoss
+    # auto: 根据任务类型自动选择（分类用CrossEntropyLoss，回归用MSELoss）
+    
     # 优化器配置
     OPTIMIZER = "AdamW"  # 可选: AdamW, Adam, SGD
     

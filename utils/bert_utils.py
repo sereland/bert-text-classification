@@ -209,12 +209,32 @@ class ModelTrainer:
     
     def _create_criterion(self) -> nn.Module:
         """创建损失函数"""
-        if self.config.TASK_TYPE == "classification":
-            return nn.CrossEntropyLoss()
-        elif self.config.TASK_TYPE == "regression":
-            return nn.MSELoss()
+        loss_function = getattr(self.config, 'LOSS_FUNCTION', 'auto')
+        
+        if loss_function == "auto":
+            # 自动选择：根据任务类型
+            if self.config.TASK_TYPE == "classification":
+                return nn.CrossEntropyLoss()
+            elif self.config.TASK_TYPE == "regression":
+                return nn.MSELoss()
+            else:
+                raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
         else:
-            raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
+            # 使用指定的损失函数
+            if loss_function == "CrossEntropyLoss":
+                return nn.CrossEntropyLoss()
+            elif loss_function == "MSELoss":
+                return nn.MSELoss()
+            elif loss_function == "L1Loss":
+                return nn.L1Loss()
+            elif loss_function == "SmoothL1Loss":
+                return nn.SmoothL1Loss()
+            elif loss_function == "BCEWithLogitsLoss":
+                return nn.BCEWithLogitsLoss()
+            elif loss_function == "KLDivLoss":
+                return nn.KLDivLoss(reduction='batchmean')
+            else:
+                raise ValueError(f"不支持的损失函数: {loss_function}")
     
     def evaluate(self) -> Tuple[float, Dict[str, float]]:
         """

@@ -44,7 +44,6 @@ def setup_args():
                        help="文本列名，用逗号分隔")
     parser.add_argument("--label_column", type=str, default="label",
                        help="标签列名")
-    
     # 训练参数
     parser.add_argument("--batch_size", type=int, default=32,
                        help="批次大小")
@@ -56,6 +55,9 @@ def setup_args():
                        help="文本最大长度")
     parser.add_argument("--num_labels", type=int, default=2,
                        help="分类任务类别数")
+    parser.add_argument("--loss_function", type=str, default="auto",
+                       choices=["auto", "CrossEntropyLoss", "MSELoss", "L1Loss", "SmoothL1Loss", "BCEWithLogitsLoss", "KLDivLoss"],
+                       help="损失函数类型")
     
     # 设备参数
     parser.add_argument("--device", type=str, default="cuda",
@@ -212,7 +214,8 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
         texts_to_predict = []
         for _, row in df.iterrows():
             # 使用与训练时相同的合并方式：" [SEP] "作为分隔符
-            combined_text = " [SEP] ".join([str(row[col]) for col in text_columns if col in row])
+            combined_text = "[SEP]".join([str(row[col]) for col in text_columns if col in row])
+            combined_text = "[CLS]" + combined_text
             texts_to_predict.append(combined_text)
         
         logger.info(f"加载了 {len(texts_to_predict)} 条数据进行预测")
@@ -387,7 +390,8 @@ def main():
         'LOGGING_STEPS': args.logging_steps,
         'EARLY_STOPPING': args.early_stopping,
         'PATIENCE': args.patience,
-        'BEST_MODEL_CRITERION': args.best_model_criterion
+        'BEST_MODEL_CRITERION': args.best_model_criterion,
+        'LOSS_FUNCTION': args.loss_function
     })
     
     # 创建保存目录
