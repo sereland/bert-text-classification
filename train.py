@@ -77,6 +77,11 @@ def setup_args():
     parser.add_argument("--patience", type=int, default=3,
                        help="早停耐心值")
     
+    # 模型选择参数
+    parser.add_argument("--best_model_criterion", type=str, default="loss",
+                       choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse"],
+                       help="最优模型选择标准")
+    
     # 其他参数
     parser.add_argument("--seed", type=int, default=42,
                        help="随机种子")
@@ -220,7 +225,8 @@ def main():
         'EVAL_STEPS': args.eval_steps,
         'LOGGING_STEPS': args.logging_steps,
         'EARLY_STOPPING': args.early_stopping,
-        'PATIENCE': args.patience
+        'PATIENCE': args.patience,
+        'BEST_MODEL_CRITERION': args.best_model_criterion
     })
     
     # 创建保存目录

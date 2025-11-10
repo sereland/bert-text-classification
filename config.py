@@ -42,6 +42,11 @@ class Config:
     EARLY_STOPPING = True
     PATIENCE = 3
     
+    # 模型选择配置
+    BEST_MODEL_CRITERION = "loss"  # 可选: "loss", "f1", "accuracy", "r2", "mse", "mae", "rmse"
+    # 对于分类任务：loss越小越好，accuracy/f1/precision/recall越大越好
+    # 对于回归任务：loss/mse/mae/rmse越小越好，r2越大越好
+    
     # 数据处理配置
     TEXT_COLUMNS = ["query", "text"]  # 文本列名
     LABEL_COLUMN = "label"  # 标签列名

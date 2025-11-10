@@ -139,6 +139,7 @@ class ModelTrainer:
         self.criterion = self._create_criterion()
         
         # 初始化早停机制
+        # 初始化早停机制
         self.early_stopping = EarlyStopping(patience=config.PATIENCE) if config.EARLY_STOPPING else None
         
         # 训练历史
@@ -151,9 +152,10 @@ class ModelTrainer:
             'learning_rates': [],    # 记录学习率
             'best_step': None,     # 记录最佳模型的步数
             'best_epoch': None,    # 记录最佳模型的epoch
-            'best_metrics': None   # 记录最佳指标
+            'best_metrics': None,  # 记录最佳指标
+            'best_score': float('-inf'),  # 记录最佳综合评分
+            'best_criterion': None  # 记录最佳模型的选择标准
         }
-    
     def _create_optimizer(self) -> torch.optim.Optimizer:
         """创建优化器"""
         if self.config.OPTIMIZER == "AdamW":
@@ -261,6 +263,47 @@ class ModelTrainer:
             )
         
         return avg_loss, metrics
+    def _calculate_model_score(self, val_loss: float, val_metrics: Dict[str, float]) -> float:
+        """
+        根据配置的标准计算模型综合评分
+        
+        Args:
+            val_loss: 验证损失
+            val_metrics: 验证指标字典
+            
+        Returns:
+            综合评分（越高越好）
+        """
+        criterion = getattr(self.config, 'BEST_MODEL_CRITERION', 'loss')
+        
+        if criterion == 'loss':
+            # 使用验证损失作为评分（损失越小越好，所以用负值）
+            return -val_loss
+        elif criterion in ['f1', 'accuracy', 'precision', 'recall']:
+            # 分类指标：越大越好
+            if self.config.TASK_TYPE == 'classification':
+                return val_metrics.get(criterion, 0.0)
+            else:
+                logger.warning(f"指标 {criterion} 不适用于回归任务，将使用loss")
+                return -val_loss
+        elif criterion in ['r2']:
+            # R2分数：越大越好
+            if self.config.TASK_TYPE == 'regression':
+                return val_metrics.get(criterion, 0.0)
+            else:
+                logger.warning(f"指标 {criterion} 不适用于分类任务，将使用loss")
+                return -val_loss
+        elif criterion in ['mse', 'mae', 'rmse']:
+            # 回归损失指标：越小越好，所以用负值
+            if self.config.TASK_TYPE == 'regression':
+                return -val_metrics.get(criterion, 0.0)
+            else:
+                logger.warning(f"指标 {criterion} 不适用于分类任务，将使用loss")
+                return -val_loss
+        else:
+            logger.warning(f"未知的指标标准: {criterion}，将使用loss")
+            return -val_loss
+            return -val_loss
     
     def train(self) -> Dict[str, List[float]]:
         """
@@ -271,7 +314,6 @@ class ModelTrainer:
         """
         logger.info("开始训练...")
         
-        best_val_loss = float('inf')
         global_step = 0
         
         for epoch in range(self.config.NUM_EPOCHS):
@@ -343,19 +385,23 @@ class ModelTrainer:
                     logger.info(f"Global Step {global_step} - 训练损失: {current_train_loss:.4f}, 验证损失: {val_loss:.4f}")
                     logger.info(f"验证指标: {val_metrics}")
                     
+                    # 计算模型综合评分
+                    model_score = self._calculate_model_score(val_loss, val_metrics)
+                    
                     # 保存最佳模型
-                    if val_loss < best_val_loss:
-                        best_val_loss = val_loss
+                    if model_score > self.train_history['best_score']:
+                        self.train_history['best_score'] = model_score
                         self.train_history['best_step'] = global_step
                         self.train_history['best_epoch'] = epoch + 1
                         self.train_history['best_metrics'] = val_metrics
+                        self.train_history['best_criterion'] = getattr(self.config, 'BEST_MODEL_CRITERION', 'loss')
                         self.save_model(f"best_model_step_{global_step}.pt")
-                        logger.info(f"最佳模型已保存: best_model_step_{global_step}.pt (Step: {global_step}, Epoch: {epoch + 1})")
+                        logger.info(f"最佳模型已保存: best_model_step_{global_step}.pt (Step: {global_step}, Epoch: {epoch + 1}, Score: {model_score:.4f})")
                     
                     # 早停检查
                     if self.early_stopping is not None:
-                        if self.early_stopping(-val_loss):  # 使用负损失，因为我们要最大化
-                            logger.info(f"早停触发，在第 {global_step} 步停止训练")
+                        if self.early_stopping(model_score):  # 使用综合评分
+                            logger.info(f"早停触发，在第 {global_step} 步停止训练 (Best Score: {self.train_history['best_score']:.4f})")
                             return self.train_history
                     
                     # 恢复训练模式
@@ -375,19 +421,23 @@ class ModelTrainer:
                 logger.info(f"Epoch {epoch + 1} 完成 - 训练损失: {avg_train_loss:.4f}, 验证损失: {val_loss:.4f}")
                 logger.info(f"验证指标: {val_metrics}")
                 
+                # 计算模型综合评分
+                model_score = self._calculate_model_score(val_loss, val_metrics)
+                
                 # 保存最佳模型
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
+                if model_score > self.train_history['best_score']:
+                    self.train_history['best_score'] = model_score
                     self.train_history['best_step'] = global_step
                     self.train_history['best_epoch'] = epoch + 1
                     self.train_history['best_metrics'] = val_metrics
+                    self.train_history['best_criterion'] = getattr(self.config, 'BEST_MODEL_CRITERION', 'loss')
                     self.save_model(f"best_model_epoch_{epoch + 1}.pt")
-                    logger.info(f"最佳模型已保存: best_model_epoch_{epoch + 1}.pt (Step: {global_step}, Epoch: {epoch + 1})")
+                    logger.info(f"最佳模型已保存: best_model_epoch_{epoch + 1}.pt (Step: {global_step}, Epoch: {epoch + 1}, Score: {model_score:.4f})")
                 
                 # 早停检查
                 if self.early_stopping is not None:
-                    if self.early_stopping(-val_loss):  # 使用负损失，因为我们要最大化
-                        logger.info(f"早停触发，在第 {epoch + 1} 个epoch停止训练")
+                    if self.early_stopping(model_score):  # 使用综合评分
+                        logger.info(f"早停触发，在第 {epoch + 1} 个epoch停止训练 (Best Score: {self.train_history['best_score']:.4f})")
                         break
             else:
                 logger.info(f"Epoch {epoch + 1} 完成 - 训练损失: {avg_train_loss:.4f}")
