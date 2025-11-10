@@ -199,7 +199,8 @@ class BertMultiTask(nn.Module):
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(self.hidden_size, 1)
+            nn.Linear(self.hidden_size, 1),
+            nn.Sigmoid()
         )
         
         # 损失函数

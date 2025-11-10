@@ -199,7 +199,7 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
     # 如果指定了输入文件，从文件加载数据
     if input_file is not None:
         logger.info(f"从文件加载数据: {input_file}")
-        df = pd.read_csv(input_file)
+        df = pd.read_csv(input_file, decimal='\t')
         
         # 获取文本列
         text_columns = config.TEXT_COLUMNS
