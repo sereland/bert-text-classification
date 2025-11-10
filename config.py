@@ -27,6 +27,10 @@ class Config:
     LOSS_FUNCTION = "auto"  # 可选: auto, CrossEntropyLoss, MSELoss, L1Loss, SmoothL1Loss, BCEWithLogitsLoss, KLDivLoss
     # auto: 根据任务类型自动选择（分类用CrossEntropyLoss，回归用MSELoss）
     
+    # 验证集配置
+    USE_VALIDATION_SET = True  # 是否使用独立的验证集
+    # True: 从训练集中划分验证集，False: 直接在测试集上进行验证
+    
     # 优化器配置
     OPTIMIZER = "AdamW"  # 可选: AdamW, Adam, SGD
     

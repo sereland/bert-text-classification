@@ -85,6 +85,10 @@ def setup_args():
                        choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse"],
                        help="最优模型选择标准")
     
+    # 验证集配置参数
+    parser.add_argument("--use_validation_set", action="store_true",
+                       help="是否使用独立的验证集（False时直接在测试集上验证）")
+    
     # 其他参数
     parser.add_argument("--seed", type=int, default=42,
                        help="随机种子")
@@ -215,7 +219,7 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
         for _, row in df.iterrows():
             # 使用与训练时相同的合并方式：" [SEP] "作为分隔符
             combined_text = "[SEP]".join([str(row[col]) for col in text_columns if col in row])
-            combined_text = "[CLS]" + combined_text
+            combined_text = "[CLS]" + combined_text + "[SEP]"
             texts_to_predict.append(combined_text)
         
         logger.info(f"加载了 {len(texts_to_predict)} 条数据进行预测")
@@ -391,7 +395,8 @@ def main():
         'EARLY_STOPPING': args.early_stopping,
         'PATIENCE': args.patience,
         'BEST_MODEL_CRITERION': args.best_model_criterion,
-        'LOSS_FUNCTION': args.loss_function
+        'LOSS_FUNCTION': args.loss_function,
+        'USE_VALIDATION_SET': args.use_validation_set
     })
     
     # 创建保存目录

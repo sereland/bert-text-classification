@@ -123,7 +123,7 @@ class DataProcessor:
         for _, row in df.iterrows():
             # 将多个文本列合并为一个字符串
             combined_text = "[SEP]".join([str(row[col]) for col in self.text_columns])
-            combined_text = "[CLS]" + combined_text 
+            combined_text = "[CLS]" + combined_text + "[SEP]"
             texts.append(combined_text)
         
         # 处理标签
@@ -257,25 +257,42 @@ def create_data_loaders(config,
     # 预处理数据
     texts, labels = processor.preprocess_data(train_df)
     
-    # 分割数据
-    train_texts, val_texts, train_labels, val_labels = processor.split_data(
-        texts, labels, test_size=0.2
-    )
-    
-    # 创建数据加载器
-    train_dataloader = processor.create_dataloader(
-        train_texts, train_labels, tokenizer,
-        batch_size=config.BATCH_SIZE,
-        max_length=config.MAX_LENGTH,
-        shuffle=True
-    )
-    
-    val_dataloader = processor.create_dataloader(
-        val_texts, val_labels, tokenizer,
-        batch_size=config.BATCH_SIZE,
-        max_length=config.MAX_LENGTH,
-        shuffle=False
-    )
+    # 根据配置决定是否使用独立验证集
+    if getattr(config, 'USE_VALIDATION_SET', True):
+        # 使用独立验证集：从训练集中划分验证集
+        train_texts, val_texts, train_labels, val_labels = processor.split_data(
+            texts, labels, test_size=0.2
+        )
+        
+        # 创建数据加载器
+        train_dataloader = processor.create_dataloader(
+            train_texts, train_labels, tokenizer,
+            batch_size=config.BATCH_SIZE,
+            max_length=config.MAX_LENGTH,
+            shuffle=True
+        )
+        
+        val_dataloader = processor.create_dataloader(
+            val_texts, val_labels, tokenizer,
+            batch_size=config.BATCH_SIZE,
+            max_length=config.MAX_LENGTH,
+            shuffle=False
+        )
+        
+        logger.info("使用独立验证集：从训练集中划分20%作为验证集")
+    else:
+        # 不使用独立验证集：直接使用测试集作为验证集
+        train_dataloader = processor.create_dataloader(
+            texts, labels, tokenizer,
+            batch_size=config.BATCH_SIZE,
+            max_length=config.MAX_LENGTH,
+            shuffle=True
+        )
+        
+        # 使用测试集作为验证集
+        val_dataloader = create_test_dataloader(config, tokenizer, processor)
+        
+        logger.info("不使用独立验证集：将直接使用测试集作为验证集")
     
     # 更新配置中的类别数
     if config.TASK_TYPE == "classification":
