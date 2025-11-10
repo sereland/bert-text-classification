@@ -94,6 +94,12 @@ def setup_args():
     parser.add_argument("--model_path", type=str, default=None,
                        help="加载模型路径")
     
+    # 预测参数
+    parser.add_argument("--predict_input_file", type=str, default=None,
+                       help="预测输入文件路径（CSV格式）")
+    parser.add_argument("--predict_output_file", type=str, default="predictions.csv",
+                       help="预测输出文件路径")
+    
     return parser.parse_args()
 
 def set_seed(seed: int):
@@ -182,20 +188,92 @@ def evaluate_model(config, model, test_dataloader):
     
     return metrics
 
-def predict_texts(config, model, texts):
+def predict_texts(config, model, texts=None, input_file=None, output_file=None):
     """预测文本"""
+    import pandas as pd
+    
     # 创建预测器
     tokenizer = AutoTokenizer.from_pretrained(config.MODEL_NAME)
     predictor = ModelPredictor(model, tokenizer, config)
     
+    # 如果指定了输入文件，从文件加载数据
+    if input_file is not None:
+        logger.info(f"从文件加载数据: {input_file}")
+        df = pd.read_csv(input_file)
+        
+        # 获取文本列
+        text_columns = config.TEXT_COLUMNS
+        if isinstance(text_columns, str):
+            text_columns = [text_columns]
+        
+        # 合并文本列 - 使用与训练时完全相同的方式
+        texts_to_predict = []
+        for _, row in df.iterrows():
+            # 使用与训练时相同的合并方式：" [SEP] "作为分隔符
+            combined_text = " [SEP] ".join([str(row[col]) for col in text_columns if col in row])
+            texts_to_predict.append(combined_text)
+        
+        logger.info(f"加载了 {len(texts_to_predict)} 条数据进行预测")
+    else:
+        # 使用提供的文本列表
+        texts_to_predict = texts
+    
     # 预测
-    predictions = predictor.predict(texts)
+    predictions = predictor.predict(texts_to_predict)
     
     # 如果是分类任务，也可以获取概率
     if config.TASK_TYPE == "classification":
-        probabilities = predictor.predict_proba(texts)
+        probabilities = predictor.predict_proba(texts_to_predict)
+        
+        # 保存预测结果
+        if output_file is not None:
+            logger.info(f"保存预测结果到: {output_file}")
+            
+            # 创建结果DataFrame
+            if input_file is not None:
+                # 保留原始数据并添加预测结果
+                result_df = df.copy()
+                result_df['prediction'] = predictions
+                
+                # 添加概率列
+                for i in range(probabilities[0].shape[0]):
+                    result_df[f'probability_class_{i}'] = [prob[i] for prob in probabilities]
+            else:
+                # 只有文本和预测结果
+                result_df = pd.DataFrame({
+                    'text': texts_to_predict,
+                    'prediction': predictions
+                })
+                
+                # 添加概率列
+                for i in range(probabilities[0].shape[0]):
+                    result_df[f'probability_class_{i}'] = [prob[i] for prob in probabilities]
+            
+            result_df.to_csv(output_file, index=False)
+            logger.info(f"预测结果已保存到 {output_file}")
+        
         return predictions, probabilities
     else:
+        # 回归任务
+        # 保存预测结果
+        if output_file is not None:
+            logger.info(f"保存预测结果到: {output_file}")
+            
+            # 创建结果DataFrame
+            if input_file is not None:
+                # 保留原始数据并添加预测结果
+                result_df = df.copy()
+                result_df['prediction'] = predictions
+            else:
+                # 只有文本和预测结果
+                result_df = pd.DataFrame({
+                    'text': texts_to_predict,
+                    'prediction': predictions
+                })
+            
+            result_df.to_csv(output_file, index=False)
+            logger.info(f"预测结果已保存到 {output_file}")
+        
         return predictions
 
 def main():
@@ -280,22 +358,38 @@ def main():
         with open(os.path.join(config.SAVE_DIR, 'evaluation_results.json'), 'w', encoding='utf-8') as f:
             json.dump(metrics, f, ensure_ascii=False, indent=2)
     
-    # 预测示例
+    # 预测
     if args.do_predict:
         logger.info("开始预测...")
-        sample_texts = [
-            "这是一个测试文本",
-            "另一个测试文本"
-        ]
         
-        predictions = predict_texts(config, model, sample_texts)
-        
-        logger.info("预测结果:")
-        for i, (text, pred) in enumerate(zip(sample_texts, predictions)):
+        # 如果指定了输入文件，从文件加载并预测
+        if args.predict_input_file is not None:
+            predictions = predict_texts(
+                config, model,
+                input_file=args.predict_input_file,
+                output_file=args.predict_output_file
+            )
+            logger.info(f"预测完成，结果已保存到: {args.predict_output_file}")
+        else:
+            # 使用示例文本进行预测
+            sample_texts = [
+                "这是一个测试文本",
+                "另一个测试文本"
+            ]
+            
+            predictions = predict_texts(config, model, sample_texts)
+            
+            logger.info("预测结果:")
             if config.TASK_TYPE == "classification":
-                logger.info(f"文本 {i+1}: {text} -> 预测类别: {pred}")
+                predictions, probabilities = predictions
+                for i, (text, pred) in enumerate(zip(sample_texts, predictions)):
+                    logger.info(f"文本 {i+1}: {text} -> 预测类别: {pred}")
+                    if probabilities:
+                        prob_str = ", ".join([f"类别{j}: {prob:.4f}" for j, prob in enumerate(probabilities[i])])
+                        logger.info(f"  概率: {prob_str}")
             else:
-                logger.info(f"文本 {i+1}: {text} -> 预测值: {pred:.4f}")
+                for i, (text, pred) in enumerate(zip(sample_texts, predictions)):
+                    logger.info(f"文本 {i+1}: {text} -> 预测值: {pred:.4f}")
 
 if __name__ == "__main__":
     main()
