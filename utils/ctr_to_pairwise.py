@@ -157,7 +157,7 @@ class CTRToPairwiseConverter:
         
         for query, group in grouped:
             # 在同一query内，根据CTR值排序
-            group_sorted = group.sort_values('ctr', ascending=False)
+            group_sorted = group.sort_values(self.label_column, ascending=False)
             
             # 生成该query内的所有可能对
             for i in range(len(group_sorted)):
@@ -225,7 +225,7 @@ def demo_conversion():
     converter = CTRToPairwiseConverter(
         text_columns=["query", "text"],
         label_column="label",
-        sampling_strategy="positive_negative"  # 使用正负采样策略
+        sampling_strategy="query_aware"  
     )
     
     pairwise_df = converter.convert_data(ctr_df)
