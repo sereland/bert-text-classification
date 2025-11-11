@@ -169,7 +169,7 @@ class CTRToPairwiseConverter:
                         'query': query,
                         'text1': row_i['text'],
                         'text2': row_j['text'],
-                        'label': 1 if row_i['ctr'] > row_j['ctr'] else 0
+                        'label': 1 if row_i[self.label_column] > row_j[self.label_column] else 0
                     }
                     pairwise_data.append(pairwise_row)
         
