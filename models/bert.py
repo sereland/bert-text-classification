@@ -287,6 +287,9 @@ def create_bert_model(config: Any) -> nn.Module:
         return BertClassifier(config)
     elif config.TASK_TYPE == "regression":
         return BertRegressor(config)
+    elif config.TASK_TYPE == "pairwise":
+        # pairwise任务使用回归器，因为需要输出单个得分
+        return BertRegressor(config)
     else:
         raise ValueError(f"不支持的任务类型: {config.TASK_TYPE}")
 
