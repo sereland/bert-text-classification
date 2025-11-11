@@ -15,6 +15,109 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+class PairwiseLoss(nn.Module):
+    """成对损失函数基类"""
+    
+    def __init__(self, loss_type: str = "ranknet"):
+        """
+        初始化成对损失函数
+        
+        Args:
+            loss_type: 损失函数类型 (ranknet, margin_ranking, bpr)
+        """
+        super().__init__()
+        self.loss_type = loss_type
+        
+    def forward(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """
+        计算成对损失
+        
+        Args:
+            scores1: 第一个文本的得分 [batch_size]
+            scores2: 第二个文本的得分 [batch_size]
+            labels: 标签 [batch_size] (1表示text1优于text2，0表示text2优于text1)
+            
+        Returns:
+            损失值
+        """
+        if self.loss_type == "ranknet":
+            return self._ranknet_loss(scores1, scores2, labels)
+        elif self.loss_type == "margin_ranking":
+            return self._margin_ranking_loss(scores1, scores2, labels)
+        elif self.loss_type == "bpr":
+            return self._bpr_loss(scores1, scores2, labels)
+        else:
+            raise ValueError(f"不支持的损失函数类型: {self.loss_type}")
+    
+    def _ranknet_loss(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """
+        RankNet损失函数
+        
+        Args:
+            scores1: 第一个文本的得分
+            scores2: 第二个文本的得分
+            labels: 标签
+            
+        Returns:
+            RankNet损失
+        """
+        # 计算得分差
+        score_diff = scores1 - scores2
+        
+        # 将标签转换为-1或1
+        target = 2 * labels - 1
+        
+        # 计算交叉熵损失
+        loss = torch.log(1 + torch.exp(-target * score_diff))
+        
+        return loss.mean()
+    
+    def _margin_ranking_loss(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor, margin: float = 1.0) -> torch.Tensor:
+        """
+        Margin Ranking损失函数
+        
+        Args:
+            scores1: 第一个文本的得分
+            scores2: 第二个文本的得分
+            labels: 标签
+            margin: 边界值
+            
+        Returns:
+            Margin Ranking损失
+        """
+        # 将标签转换为-1或1
+        target = 2 * labels - 1
+        
+        # 计算损失
+        loss = torch.relu(-target * (scores1 - scores2) + margin)
+        
+        return loss.mean()
+    
+    def _bpr_loss(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """
+        Bayesian Personalized Ranking (BPR) 损失函数
+        
+        Args:
+            scores1: 第一个文本的得分
+            scores2: 第二个文本的得分
+            labels: 标签
+            
+        Returns:
+            BPR损失
+        """
+        # 只处理正样本对（labels=1）
+        mask = labels == 1
+        if not mask.any():
+            return torch.tensor(0.0, device=scores1.device, requires_grad=True)
+        
+        # 计算得分差
+        score_diff = scores1[mask] - scores2[mask]
+        
+        # 计算BPR损失
+        loss = -torch.log(torch.sigmoid(score_diff))
+        
+        return loss.mean()
+
 class EarlyStopping:
     """早停机制"""
     
@@ -217,6 +320,8 @@ class ModelTrainer:
                 return nn.CrossEntropyLoss()
             elif self.config.TASK_TYPE == "regression":
                 return nn.MSELoss()
+            elif self.config.TASK_TYPE == "pairwise":
+                return PairwiseLoss("ranknet")  # 默认使用RankNet损失
             else:
                 raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
         else:
@@ -233,6 +338,12 @@ class ModelTrainer:
                 return nn.BCEWithLogitsLoss()
             elif loss_function == "KLDivLoss":
                 return nn.KLDivLoss(reduction='batchmean')
+            elif loss_function == "RankNetLoss":
+                return PairwiseLoss("ranknet")
+            elif loss_function == "MarginRankingLoss":
+                return PairwiseLoss("margin_ranking")
+            elif loss_function == "BPRLoss":
+                return PairwiseLoss("bpr")
             else:
                 raise ValueError(f"不支持的损失函数: {loss_function}")
     
@@ -254,26 +365,51 @@ class ModelTrainer:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 
                 # 前向传播
-                outputs = self.model(**batch)
-                loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
+                if self.config.TASK_TYPE == "pairwise":
+                    # pairwise任务：分别处理两个文本
+                    text1_inputs = {k.replace('text1_', ''): v for k, v in batch.items() if k.startswith('text1_')}
+                    text2_inputs = {k.replace('text2_', ''): v for k, v in batch.items() if k.startswith('text2_')}
+                    
+                    scores1 = self.model(**text1_inputs)['logits'].squeeze()
+                    scores2 = self.model(**text2_inputs)['logits'].squeeze()
+                    
+                    # 计算pairwise损失
+                    loss = self.criterion(scores1, scores2, batch['labels'])
+                    
+                    # 收集预测和标签
+                    # 对于pairwise任务，预测为text1的得分是否大于text2的得分
+                    predictions = (scores1 > scores2).float()
+                    labels = batch['labels']
+                    
+                    all_predictions.extend(predictions.cpu().numpy())
+                    all_labels.extend(labels.cpu().numpy())
+                else:
+                    # 分类或回归任务
+                    outputs = self.model(**batch)
+                    loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
+                    
+                    # 收集预测和标签
+                    if self.config.TASK_TYPE == "classification":
+                        predictions = torch.argmax(outputs['logits'], dim=-1)
+                    else:  # regression
+                        predictions = outputs['logits'].squeeze()
+                    
+                    all_predictions.extend(predictions.cpu().numpy())
+                    all_labels.extend(batch['labels'].cpu().numpy())
                 
                 # 累计损失
                 total_loss += loss.item()
-                
-                # 收集预测和标签
-                if self.config.TASK_TYPE == "classification":
-                    predictions = torch.argmax(outputs['logits'], dim=-1)
-                else:  # regression
-                    predictions = outputs['logits'].squeeze()
-                
-                all_predictions.extend(predictions.cpu().numpy())
-                all_labels.extend(batch['labels'].cpu().numpy())
         
         # 计算平均损失
         avg_loss = total_loss / len(self.val_dataloader)
         
         # 计算指标
-        if self.config.TASK_TYPE == "classification":
+        if self.config.TASK_TYPE == "pairwise":
+            # pairwise任务使用分类指标（实际上是二分类）
+            metrics = MetricsCalculator.calculate_classification_metrics(
+                np.array(all_labels), np.array(all_predictions)
+            )
+        elif self.config.TASK_TYPE == "classification":
             metrics = MetricsCalculator.calculate_classification_metrics(
                 np.array(all_labels), np.array(all_predictions)
             )
@@ -301,7 +437,7 @@ class ModelTrainer:
             return -val_loss
         elif criterion in ['f1', 'accuracy', 'precision', 'recall']:
             # 分类指标：越大越好
-            if self.config.TASK_TYPE == 'classification':
+            if self.config.TASK_TYPE in ['classification', 'pairwise']:
                 return val_metrics.get(criterion, 0.0)
             else:
                 logger.warning(f"指标 {criterion} 不适用于回归任务，将使用loss")
@@ -318,11 +454,17 @@ class ModelTrainer:
             if self.config.TASK_TYPE == 'regression':
                 return -val_metrics.get(criterion, 0.0)
             else:
-                logger.warning(f"指标 {criterion} 不适用于分类任务，将使用loss")
+                logger.warning(f"指标 {criterion} 不适用于分类或pairwise任务，将使用loss")
+                return -val_loss
+        elif criterion in ['auc', 'ndcg']:
+            # pairwise指标：越大越好
+            if self.config.TASK_TYPE == 'pairwise':
+                return val_metrics.get(criterion, 0.0)
+            else:
+                logger.warning(f"指标 {criterion} 不适用于分类或回归任务，将使用loss")
                 return -val_loss
         else:
             logger.warning(f"未知的指标标准: {criterion}，将使用loss")
-            return -val_loss
             return -val_loss
     
     def train(self) -> Dict[str, List[float]]:
@@ -350,8 +492,20 @@ class ModelTrainer:
                 batch = {k: v.to(self.device) for k, v in batch.items()}
                 
                 # 前向传播
-                outputs = self.model(**batch)
-                loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
+                if self.config.TASK_TYPE == "pairwise":
+                    # pairwise任务：分别处理两个文本
+                    text1_inputs = {k.replace('text1_', ''): v for k, v in batch.items() if k.startswith('text1_')}
+                    text2_inputs = {k.replace('text2_', ''): v for k, v in batch.items() if k.startswith('text2_')}
+                    
+                    scores1 = self.model(**text1_inputs)['logits'].squeeze()
+                    scores2 = self.model(**text2_inputs)['logits'].squeeze()
+                    
+                    # 计算pairwise损失
+                    loss = self.criterion(scores1, scores2, batch['labels'])
+                else:
+                    # 分类或回归任务
+                    outputs = self.model(**batch)
+                    loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
                 
                 # 反向传播
                 loss.backward()
@@ -569,6 +723,9 @@ class ModelPredictor:
                 
                 if self.config.TASK_TYPE == "classification":
                     pred = torch.argmax(outputs['logits'], dim=-1).item()
+                elif self.config.TASK_TYPE == "pairwise":
+                    # pairwise任务：输出单个得分
+                    pred = outputs['logits'].squeeze().item()
                 else:  # regression
                     pred = outputs['logits'].squeeze().item()
                 

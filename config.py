@@ -16,7 +16,7 @@ class Config:
     NUM_LABELS = 2  # 分类任务类别数，回归任务设为1
     
     # 训练配置
-    TASK_TYPE = "classification"  # 可选: classification, regression
+    TASK_TYPE = "classification"  # 可选: classification, regression, pairwise
     BATCH_SIZE = 32
     LEARNING_RATE = 2e-5
     NUM_EPOCHS = 3
@@ -24,8 +24,8 @@ class Config:
     WARMUP_RATIO = 0.1
     
     # 损失函数配置
-    LOSS_FUNCTION = "auto"  # 可选: auto, CrossEntropyLoss, MSELoss, L1Loss, SmoothL1Loss, BCEWithLogitsLoss, KLDivLoss
-    # auto: 根据任务类型自动选择（分类用CrossEntropyLoss，回归用MSELoss）
+    LOSS_FUNCTION = "auto"  # 可选: auto, CrossEntropyLoss, MSELoss, L1Loss, SmoothL1Loss, BCEWithLogitsLoss, KLDivLoss, RankNetLoss, MarginRankingLoss, BPRLoss
+    # auto: 根据任务类型自动选择（分类用CrossEntropyLoss，回归用MSELoss，pairwise用RankNetLoss）
     
     # 验证集配置
     USE_VALIDATION_SET = True  # 是否使用独立的验证集
@@ -51,12 +51,13 @@ class Config:
     PATIENCE = 3
     
     # 模型选择配置
-    BEST_MODEL_CRITERION = "loss"  # 可选: "loss", "f1", "accuracy", "r2", "mse", "mae", "rmse"
+    BEST_MODEL_CRITERION = "loss"  # 可选: "loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg"
     # 对于分类任务：loss越小越好，accuracy/f1/precision/recall越大越好
     # 对于回归任务：loss/mse/mae/rmse越小越好，r2越大越好
+    # 对于pairwise任务：loss越小越好，auc/ndcg越大越好
     
     # 数据处理配置
-    TEXT_COLUMNS = ["query", "text"]  # 文本列名
+    TEXT_COLUMNS = ["query", "text"]  # 文本列名（对于pairwise任务，应该是["query", "text1", "text2"]）
     LABEL_COLUMN = "label"  # 标签列名
     
     # BERT-CNN 特定配置
@@ -95,6 +96,14 @@ class RegressionConfig(Config):
     LOSS_FUNCTION = "MSELoss"
     NUM_LABELS = 1
 
+class PairwiseConfig(Config):
+    """Pairwise任务配置"""
+    TASK_TYPE = "pairwise"
+    LOSS_FUNCTION = "RankNetLoss"
+    TEXT_COLUMNS = ["query", "text1", "text2"]  # pairwise任务需要三个文本列
+    NUM_LABELS = 1  # pairwise任务输出单个得分
+    BEST_MODEL_CRITERION = "auc"  # pairwise任务默认使用AUC作为评估指标
+
 # 模型特定配置
 class BertConfig(Config):
     """BERT模型配置"""
@@ -121,18 +130,35 @@ def get_config(task_type: str = "classification", model_type: str = "bert") -> C
         base_config = ClassificationConfig
     elif task_type == "regression":
         base_config = RegressionConfig
+    elif task_type == "pairwise":
+        base_config = PairwiseConfig
     else:
         raise ValueError(f"不支持的任务类型: {task_type}")
     
     if model_type == "bert":
-        config_class = type("BertClassificationConfig" if task_type == "classification" else "BertRegressionConfig", 
-                           (base_config, BertConfig), {})
+        if task_type == "classification":
+            config_class_name = "BertClassificationConfig"
+        elif task_type == "regression":
+            config_class_name = "BertRegressionConfig"
+        else:  # pairwise
+            config_class_name = "BertPairwiseConfig"
+        config_class = type(config_class_name, (base_config, BertConfig), {})
     elif model_type == "bert_cnn":
-        config_class = type("BertCNNClassificationConfig" if task_type == "classification" else "BertCNNRegressionConfig", 
-                           (base_config, BertCNNConfig), {})
+        if task_type == "classification":
+            config_class_name = "BertCNNClassificationConfig"
+        elif task_type == "regression":
+            config_class_name = "BertCNNRegressionConfig"
+        else:  # pairwise
+            config_class_name = "BertCNNPairwiseConfig"
+        config_class = type(config_class_name, (base_config, BertCNNConfig), {})
     elif model_type == "bert_xlnet":
-        config_class = type("BertXLNetClassificationConfig" if task_type == "classification" else "BertXLNetRegressionConfig", 
-                           (base_config, BertXLNetConfig), {})
+        if task_type == "classification":
+            config_class_name = "BertXLNetClassificationConfig"
+        elif task_type == "regression":
+            config_class_name = "BertXLNetRegressionConfig"
+        else:  # pairwise
+            config_class_name = "BertXLNetPairwiseConfig"
+        config_class = type(config_class_name, (base_config, BertXLNetConfig), {})
     else:
         raise ValueError(f"不支持的模型类型: {model_type}")
     

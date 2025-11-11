@@ -63,6 +63,218 @@ class TextDataset(Dataset):
         
         return encoding
 
+class PairwiseTextDataset(Dataset):
+    """成对文本数据集类"""
+    
+    def __init__(self,
+                 texts1: List[str],
+                 texts2: List[str],
+                 labels: List[float],
+                 tokenizer: AutoTokenizer,
+                 max_length: int = 128):
+        """
+        初始化成对文本数据集
+        
+        Args:
+            texts1: 第一个文本列表
+            texts2: 第二个文本列表
+            labels: 标签列表（1表示text1优于text2，0表示text2优于text1）
+            tokenizer: 分词器
+            max_length: 最大长度
+        """
+        self.texts1 = texts1
+        self.texts2 = texts2
+        self.labels = labels
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+    
+    def __len__(self) -> int:
+        return len(self.texts1)
+    
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        text1 = str(self.texts1[idx])
+        text2 = str(self.texts2[idx])
+        label = self.labels[idx]
+        
+        # 分别对两个文本进行分词和编码
+        encoding1 = self.tokenizer(
+            text1,
+            truncation=True,
+            padding='max_length',
+            max_length=self.max_length,
+            return_tensors='pt'
+        )
+        
+        encoding2 = self.tokenizer(
+            text2,
+            truncation=True,
+            padding='max_length',
+            max_length=self.max_length,
+            return_tensors='pt'
+        )
+        
+        # 移除batch维度
+        encoding1 = {f"text1_{key}": val.squeeze(0) for key, val in encoding1.items()}
+        encoding2 = {f"text2_{key}": val.squeeze(0) for key, val in encoding2.items()}
+        
+        # 合并编码
+        encoding = {**encoding1, **encoding2}
+        
+        # 添加标签（pairwise标签为浮点数）
+        encoding['labels'] = torch.tensor(label, dtype=torch.float)
+        
+        return encoding
+
+class PairwiseDataProcessor:
+    """成对数据处理器"""
+    
+    def __init__(self,
+                 text_columns: List[str] = ["query", "text1", "text2"],
+                 label_column: str = "label"):
+        """
+        初始化成对数据处理器
+        
+        Args:
+            text_columns: 文本列名列表，应该包含query, text1, text2
+            label_column: 标签列名
+        """
+        self.text_columns = text_columns
+        self.label_column = label_column
+        if len(text_columns) != 3:
+            raise ValueError("Pairwise任务需要3个文本列：query, text1, text2")
+    
+    def load_data(self, file_path: str) -> pd.DataFrame:
+        """
+        加载数据文件
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            DataFrame
+        """
+        try:
+            df = pd.read_csv(file_path, delimiter='\t')
+            logger.info(f"成功加载数据文件: {file_path}, 形状: {df.shape}")
+            return df
+        except Exception as e:
+            logger.error(f"加载数据文件失败: {e}")
+            raise
+    
+    def preprocess_data(self, df: pd.DataFrame) -> Tuple[List[str], List[str], List[float]]:
+        """
+        预处理成对数据
+        
+        Args:
+            df: 数据框
+            
+        Returns:
+            文本1列表、文本2列表和标签列表的元组
+        """
+        # 检查必要的列是否存在
+        missing_cols = [col for col in self.text_columns + [self.label_column]
+                        if col not in df.columns]
+        if missing_cols:
+            raise ValueError(f"数据框中缺少以下列: {missing_cols}")
+        
+        # 处理文本
+        query_col, text1_col, text2_col = self.text_columns
+        
+        texts1 = []
+        texts2 = []
+        
+        for _, row in df.iterrows():
+            # 构建text1: [CLS]query[SEP]text1[SEP]
+            text1 = f"[CLS]{row[query_col]}[SEP]{row[text1_col]}[SEP]"
+            # 构建text2: [CLS]query[SEP]text2[SEP]
+            text2 = f"[CLS]{row[query_col]}[SEP]{row[text2_col]}[SEP]"
+            
+            texts1.append(text1)
+            texts2.append(text2)
+        
+        # 处理标签
+        labels = df[self.label_column].tolist()
+        
+        logger.info(f"预处理完成，文本对数量: {len(texts1)}, 标签数量: {len(labels)}")
+        return texts1, texts2, labels
+    
+    def split_data(self,
+                   texts1: List[str],
+                   texts2: List[str],
+                   labels: List[float],
+                   test_size: float = 0.2,
+                   random_state: int = 42) -> Tuple[List[str], List[str], List[str], List[str], List[float], List[float]]:
+        """
+        分割成对数据为训练集和验证集
+        
+        Args:
+            texts1: 第一个文本列表
+            texts2: 第二个文本列表
+            labels: 标签列表
+            test_size: 测试集比例
+            random_state: 随机种子
+            
+        Returns:
+            训练文本1、训练文本2、验证文本1、验证文本2、训练标签、验证标签的元组
+        """
+        # 使用相同的索引分割所有数据
+        indices = list(range(len(texts1)))
+        train_indices, val_indices = train_test_split(
+            indices, test_size=test_size, random_state=random_state, stratify=labels
+        )
+        
+        train_texts1 = [texts1[i] for i in train_indices]
+        train_texts2 = [texts2[i] for i in train_indices]
+        train_labels = [labels[i] for i in train_indices]
+        
+        val_texts1 = [texts1[i] for i in val_indices]
+        val_texts2 = [texts2[i] for i in val_indices]
+        val_labels = [labels[i] for i in val_indices]
+        
+        logger.info(f"数据分割完成 - 训练集: {len(train_texts1)}, 验证集: {len(val_texts1)}")
+        return train_texts1, train_texts2, val_texts1, val_texts2, train_labels, val_labels
+    
+    def create_dataloader(self,
+                         texts1: List[str],
+                         texts2: List[str],
+                         labels: List[float],
+                         tokenizer: AutoTokenizer,
+                         batch_size: int = 32,
+                         max_length: int = 128,
+                         shuffle: bool = True) -> DataLoader:
+        """
+        创建成对数据加载器
+        
+        Args:
+            texts1: 第一个文本列表
+            texts2: 第二个文本列表
+            labels: 标签列表
+            tokenizer: 分词器
+            batch_size: 批次大小
+            max_length: 最大长度
+            shuffle: 是否打乱数据
+            
+        Returns:
+            DataLoader
+        """
+        dataset = PairwiseTextDataset(
+            texts1=texts1,
+            texts2=texts2,
+            labels=labels,
+            tokenizer=tokenizer,
+            max_length=max_length
+        )
+        
+        dataloader = DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=4,
+            pin_memory=True
+        )
+        
+        return dataloader
+
 class DataProcessor:
     """数据处理器"""
     
@@ -244,59 +456,113 @@ def create_data_loaders(config,
     Returns:
         训练数据加载器和验证数据加载器的元组
     """
-    # 初始化数据处理器
-    processor = DataProcessor(
-        text_columns=config.TEXT_COLUMNS,
-        label_column=config.LABEL_COLUMN,
-        task_type=config.TASK_TYPE
-    )
-    
-    # 加载训练数据
-    train_df = processor.load_data(config.TRAIN_FILE)
-    
-    # 预处理数据
-    texts, labels = processor.preprocess_data(train_df)
-    
-    # 根据配置决定是否使用独立验证集
-    if getattr(config, 'USE_VALIDATION_SET', True):
-        # 使用独立验证集：从训练集中划分验证集
-        train_texts, val_texts, train_labels, val_labels = processor.split_data(
-            texts, labels, test_size=0.2
+    # 根据任务类型选择数据处理器
+    if config.TASK_TYPE == "pairwise":
+        processor = PairwiseDataProcessor(
+            text_columns=config.TEXT_COLUMNS,
+            label_column=config.LABEL_COLUMN
         )
         
-        # 创建数据加载器
-        train_dataloader = processor.create_dataloader(
-            train_texts, train_labels, tokenizer,
-            batch_size=config.BATCH_SIZE,
-            max_length=config.MAX_LENGTH,
-            shuffle=True
-        )
+        # 加载训练数据
+        train_df = processor.load_data(config.TRAIN_FILE)
         
-        val_dataloader = processor.create_dataloader(
-            val_texts, val_labels, tokenizer,
-            batch_size=config.BATCH_SIZE,
-            max_length=config.MAX_LENGTH,
-            shuffle=False
-        )
+        # 预处理数据
+        texts1, texts2, labels = processor.preprocess_data(train_df)
         
-        logger.info("使用独立验证集：从训练集中划分20%作为验证集")
+        # 根据配置决定是否使用独立验证集
+        if getattr(config, 'USE_VALIDATION_SET', True):
+            # 使用独立验证集：从训练集中划分验证集
+            train_texts1, train_texts2, val_texts1, val_texts2, train_labels, val_labels = processor.split_data(
+                texts1, texts2, labels, test_size=0.2
+            )
+            
+            # 创建数据加载器
+            train_dataloader = processor.create_dataloader(
+                train_texts1, train_texts2, train_labels, tokenizer,
+                batch_size=config.BATCH_SIZE,
+                max_length=config.MAX_LENGTH,
+                shuffle=True
+            )
+            
+            val_dataloader = processor.create_dataloader(
+                val_texts1, val_texts2, val_labels, tokenizer,
+                batch_size=config.BATCH_SIZE,
+                max_length=config.MAX_LENGTH,
+                shuffle=False
+            )
+            
+            logger.info("使用独立验证集：从训练集中划分20%作为验证集")
+        else:
+            # 不使用独立验证集：直接使用测试集作为验证集
+            train_dataloader = processor.create_dataloader(
+                texts1, texts2, labels, tokenizer,
+                batch_size=config.BATCH_SIZE,
+                max_length=config.MAX_LENGTH,
+                shuffle=True
+            )
+            
+            # 使用测试集作为验证集
+            val_dataloader = create_test_dataloader(config, tokenizer, processor)
+            
+            logger.info("不使用独立验证集：将直接使用测试集作为验证集")
+        
+        # pairwise任务类别数固定为1（输出单个得分）
+        config.NUM_LABELS = 1
+        
     else:
-        # 不使用独立验证集：直接使用测试集作为验证集
-        train_dataloader = processor.create_dataloader(
-            texts, labels, tokenizer,
-            batch_size=config.BATCH_SIZE,
-            max_length=config.MAX_LENGTH,
-            shuffle=True
+        # 分类或回归任务
+        processor = DataProcessor(
+            text_columns=config.TEXT_COLUMNS,
+            label_column=config.LABEL_COLUMN,
+            task_type=config.TASK_TYPE
         )
         
-        # 使用测试集作为验证集
-        val_dataloader = create_test_dataloader(config, tokenizer, processor)
+        # 加载训练数据
+        train_df = processor.load_data(config.TRAIN_FILE)
         
-        logger.info("不使用独立验证集：将直接使用测试集作为验证集")
-    
-    # 更新配置中的类别数
-    if config.TASK_TYPE == "classification":
-        config.NUM_LABELS = processor.get_num_classes()
+        # 预处理数据
+        texts, labels = processor.preprocess_data(train_df)
+        
+        # 根据配置决定是否使用独立验证集
+        if getattr(config, 'USE_VALIDATION_SET', True):
+            # 使用独立验证集：从训练集中划分验证集
+            train_texts, val_texts, train_labels, val_labels = processor.split_data(
+                texts, labels, test_size=0.2
+            )
+            
+            # 创建数据加载器
+            train_dataloader = processor.create_dataloader(
+                train_texts, train_labels, tokenizer,
+                batch_size=config.BATCH_SIZE,
+                max_length=config.MAX_LENGTH,
+                shuffle=True
+            )
+            
+            val_dataloader = processor.create_dataloader(
+                val_texts, val_labels, tokenizer,
+                batch_size=config.BATCH_SIZE,
+                max_length=config.MAX_LENGTH,
+                shuffle=False
+            )
+            
+            logger.info("使用独立验证集：从训练集中划分20%作为验证集")
+        else:
+            # 不使用独立验证集：直接使用测试集作为验证集
+            train_dataloader = processor.create_dataloader(
+                texts, labels, tokenizer,
+                batch_size=config.BATCH_SIZE,
+                max_length=config.MAX_LENGTH,
+                shuffle=True
+            )
+            
+            # 使用测试集作为验证集
+            val_dataloader = create_test_dataloader(config, tokenizer, processor)
+            
+            logger.info("不使用独立验证集：将直接使用测试集作为验证集")
+        
+        # 更新配置中的类别数
+        if config.TASK_TYPE == "classification":
+            config.NUM_LABELS = processor.get_num_classes()
     
     return train_dataloader, val_dataloader
 
@@ -314,27 +580,49 @@ def create_test_dataloader(config,
     Returns:
         测试数据加载器
     """
-    # 如果没有提供处理器，创建一个新的
-    if processor is None:
-        processor = DataProcessor(
-            text_columns=config.TEXT_COLUMNS,
-            label_column=config.LABEL_COLUMN,
-            task_type=config.TASK_TYPE
+    # 根据任务类型选择数据处理器
+    if config.TASK_TYPE == "pairwise":
+        if processor is None or not isinstance(processor, PairwiseDataProcessor):
+            processor = PairwiseDataProcessor(
+                text_columns=config.TEXT_COLUMNS,
+                label_column=config.LABEL_COLUMN
+            )
+        
+        # 加载测试数据
+        test_df = processor.load_data(config.TEST_FILE)
+        
+        # 预处理数据
+        texts1, texts2, labels = processor.preprocess_data(test_df)
+        
+        # 创建测试数据加载器
+        test_dataloader = processor.create_dataloader(
+            texts1, texts2, labels, tokenizer,
+            batch_size=config.BATCH_SIZE,
+            max_length=config.MAX_LENGTH,
+            shuffle=False
         )
-    
-    # 加载测试数据
-    test_df = processor.load_data(config.TEST_FILE)
-    
-    # 预处理数据
-    texts, labels = processor.preprocess_data(test_df)
-    
-    # 创建测试数据加载器
-    test_dataloader = processor.create_dataloader(
-        texts, labels, tokenizer,
-        batch_size=config.BATCH_SIZE,
-        max_length=config.MAX_LENGTH,
-        shuffle=False
-    )
+    else:
+        # 分类或回归任务
+        if processor is None or not isinstance(processor, DataProcessor):
+            processor = DataProcessor(
+                text_columns=config.TEXT_COLUMNS,
+                label_column=config.LABEL_COLUMN,
+                task_type=config.TASK_TYPE
+            )
+        
+        # 加载测试数据
+        test_df = processor.load_data(config.TEST_FILE)
+        
+        # 预处理数据
+        texts, labels = processor.preprocess_data(test_df)
+        
+        # 创建测试数据加载器
+        test_dataloader = processor.create_dataloader(
+            texts, labels, tokenizer,
+            batch_size=config.BATCH_SIZE,
+            max_length=config.MAX_LENGTH,
+            shuffle=False
+        )
     
     return test_dataloader
 

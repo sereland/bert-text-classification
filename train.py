@@ -26,9 +26,9 @@ def setup_args():
     parser = argparse.ArgumentParser(description="BERT文本分类/回归训练脚本")
     
     # 基本参数
-    parser.add_argument("--task_type", type=str, default="classification", 
-                       choices=["classification", "regression"],
-                       help="任务类型：分类或回归")
+    parser.add_argument("--task_type", type=str, default="classification",
+                       choices=["classification", "regression", "pairwise"],
+                       help="任务类型：分类、回归或pairwise")
     parser.add_argument("--model_type", type=str, default="bert",
                        choices=["bert", "bert_cnn"],
                        help="模型类型：BERT或BERT-CNN")
@@ -41,7 +41,7 @@ def setup_args():
     parser.add_argument("--test_file", type=str, default="data/test.csv",
                        help="测试数据文件路径")
     parser.add_argument("--text_columns", type=str, default="query,text",
-                       help="文本列名，用逗号分隔")
+                       help="文本列名，用逗号分隔（pairwise任务应为query,text1,text2）")
     parser.add_argument("--label_column", type=str, default="label",
                        help="标签列名")
     # 训练参数
@@ -56,7 +56,7 @@ def setup_args():
     parser.add_argument("--num_labels", type=int, default=2,
                        help="分类任务类别数")
     parser.add_argument("--loss_function", type=str, default="auto",
-                       choices=["auto", "CrossEntropyLoss", "MSELoss", "L1Loss", "SmoothL1Loss", "BCEWithLogitsLoss", "KLDivLoss"],
+                       choices=["auto", "CrossEntropyLoss", "MSELoss", "L1Loss", "SmoothL1Loss", "BCEWithLogitsLoss", "KLDivLoss", "RankNetLoss", "MarginRankingLoss", "BPRLoss"],
                        help="损失函数类型")
     
     # 设备参数
@@ -82,7 +82,7 @@ def setup_args():
     
     # 模型选择参数
     parser.add_argument("--best_model_criterion", type=str, default="loss",
-                       choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse"],
+                       choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg"],
                        help="最优模型选择标准")
     
     # 验证集配置参数
@@ -255,27 +255,26 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             
             predictions.append(pred)
             probabilities.append(probs)
-    else:
-        # 回归任务：逐个预测并显示进度
-        for i, text in enumerate(tqdm(texts_to_predict, desc="预测进度", unit="条")):
-            # 分词和编码
-            inputs = tokenizer(
-                text,
-                truncation=True,
-                padding='max_length',
-                max_length=config.MAX_LENGTH,
-                return_tensors='pt'
-            )
-            
-            # 将数据移动到设备
-            inputs = {k: v.to(config.DEVICE) for k, v in inputs.items()}
-            
-            # 预测
-            with torch.no_grad():
-                outputs = model(**inputs)
-                pred = outputs['logits'].squeeze().item()
-            
-            predictions.append(pred)
+    # 回归或pairwise任务：逐个预测并显示进度
+    for i, text in enumerate(tqdm(texts_to_predict, desc="预测进度", unit="条")):
+        # 分词和编码
+        inputs = tokenizer(
+            text,
+            truncation=True,
+            padding='max_length',
+            max_length=config.MAX_LENGTH,
+            return_tensors='pt'
+        )
+
+        # 将数据移动到设备
+        inputs = {k: v.to(config.DEVICE) for k, v in inputs.items()}
+
+        # 预测
+        with torch.no_grad():
+            outputs = model(**inputs)
+            pred = outputs['logits'].squeeze().item()
+
+        predictions.append(pred)
     
     logger.info("预测完成")
     
@@ -328,42 +327,47 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
                 json.dump(metrics, f, ensure_ascii=False, indent=2)
             logger.info(f"离线指标已保存到: {metrics_file}")
         
-        return predictions, probabilities
-    else:
-        # 回归任务
-        # 保存预测结果
-        if output_file is not None:
-            logger.info(f"保存预测结果到: {output_file}")
-            
-            # 创建结果DataFrame
-            if input_file is not None:
-                # 保留原始数据并添加预测结果
-                result_df = df.copy()
-                result_df['prediction'] = predictions
-            else:
-                # 只有文本和预测结果
-                result_df = pd.DataFrame({
-                    'text': texts_to_predict,
-                    'prediction': predictions
-                })
-            
-            result_df.to_csv(output_file, index=False)
-            logger.info(f"预测结果已保存到 {output_file}")
-        
-        # 计算离线指标（如果输入文件包含标签）
-        if input_file is not None and config.LABEL_COLUMN in df.columns:
-            logger.info("计算离线指标...")
-            true_labels = df[config.LABEL_COLUMN].tolist()
-            
-            metrics = MetricsCalculator.calculate_regression_metrics(true_labels, predictions)
-            logger.info(f"离线指标: {metrics}")
-            
-            # 保存离线指标
-            metrics_file = output_file.replace('.csv', '_metrics.json')
-            with open(metrics_file, 'w', encoding='utf-8') as f:
-                json.dump(metrics, f, ensure_ascii=False, indent=2)
-            logger.info(f"离线指标已保存到: {metrics_file}")
-        
+        else:
+            # 回归或pairwise任务
+            # 保存预测结果
+            if output_file is not None:
+                logger.info(f"保存预测结果到: {output_file}")
+
+                # 创建结果DataFrame
+                if input_file is not None:
+                    # 保留原始数据并添加预测结果
+                    result_df = df.copy()
+                    result_df['prediction'] = predictions
+                else:
+                    # 只有文本和预测结果
+                    result_df = pd.DataFrame({
+                        'text': texts_to_predict,
+                        'prediction': predictions
+                    })
+
+                result_df.to_csv(output_file, index=False)
+                logger.info(f"预测结果已保存到 {output_file}")
+
+            # 计算离线指标（如果输入文件包含标签）
+            if input_file is not None and config.LABEL_COLUMN in df.columns:
+                logger.info("计算离线指标...")
+                true_labels = df[config.LABEL_COLUMN].tolist()
+
+                if config.TASK_TYPE == "pairwise":
+                    # pairwise任务使用分类指标（实际上是二分类）
+                    metrics = MetricsCalculator.calculate_classification_metrics(true_labels, predictions)
+                else:
+                    # 回归任务
+                    metrics = MetricsCalculator.calculate_regression_metrics(true_labels, predictions)
+                
+                logger.info(f"离线指标: {metrics}")
+
+                # 保存离线指标
+                metrics_file = output_file.replace('.csv', '_metrics.json')
+                with open(metrics_file, 'w', encoding='utf-8') as f:
+                    json.dump(metrics, f, ensure_ascii=False, indent=2)
+                logger.info(f"离线指标已保存到: {metrics_file}")
+
         return predictions
 
 def main():
@@ -481,7 +485,10 @@ def main():
                         logger.info(f"  概率: {prob_str}")
             else:
                 for i, (text, pred) in enumerate(zip(sample_texts, predictions)):
-                    logger.info(f"文本 {i+1}: {text} -> 预测值: {pred:.4f}")
+                    if config.TASK_TYPE == "pairwise":
+                        logger.info(f"文本 {i+1}: {text} -> 预测得分: {pred:.4f}")
+                    else:
+                        logger.info(f"文本 {i+1}: {text} -> 预测值: {pred:.4f}")
 
 if __name__ == "__main__":
     main()
