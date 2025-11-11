@@ -459,7 +459,7 @@ def create_data_loaders(config,
     # 根据任务类型选择数据处理器
     if config.TASK_TYPE == "pairwise":
         processor = PairwiseDataProcessor(
-            text_columns=config.TEXT_COLUMNS,
+            text_columns=config.TEXT_COLUMNS_PAIRWISE,
             label_column=config.LABEL_COLUMN
         )
         

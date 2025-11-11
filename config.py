@@ -58,6 +58,7 @@ class Config:
     
     # 数据处理配置
     TEXT_COLUMNS = ["query", "text"]  # 文本列名（对于pairwise任务，应该是["query", "text1", "text2"]）
+    TEXT_COLUMNS_PAIRWISE = ["query", "text1", "text2"]  # pairwise任务文本列名
     LABEL_COLUMN = "label"  # 标签列名
     
     # BERT-CNN 特定配置
