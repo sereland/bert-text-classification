@@ -17,7 +17,10 @@ class CTRToPairwiseConverter:
     def __init__(self, 
                  text_columns: List[str] = ["query", "text"],
                  label_column: str = "label",
-                 sampling_strategy: str = "random"):
+                 sampling_strategy: str = "random",
+                 min_ctr_diff: float = 0.05,  # 最小CTR差异阈值
+                 max_pairs_per_query: int = 100,  # 每query最大pair数
+                 balance_ratio: float = 1.0):  # 正负样本比例):
         """
         初始化转换器
         
@@ -29,6 +32,9 @@ class CTRToPairwiseConverter:
         self.text_columns = text_columns
         self.label_column = label_column
         self.sampling_strategy = sampling_strategy
+        self.min_ctr_diff = min_ctr_diff
+        self.max_pairs_per_query = max_pairs_per_query
+        self.balance_ratio = balance_ratio
     
     def convert_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -149,29 +155,48 @@ class CTRToPairwiseConverter:
         return pd.DataFrame(pairwise_data)
     
     def _query_aware_sampling(self, df: pd.DataFrame) -> pd.DataFrame:
-        """基于query的pairwise采样"""
+        """query内采样"""
         pairwise_data = []
-        
-        # 按query分组
         grouped = df.groupby('query')
         
         for query, group in grouped:
-            # 在同一query内，根据CTR值排序
+            if len(group) < 2:
+                continue
+            
+            pairs = []
             group_sorted = group.sort_values(self.label_column, ascending=False)
             
-            # 生成该query内的所有可能对
             for i in range(len(group_sorted)):
                 for j in range(i + 1, len(group_sorted)):
                     row_i = group_sorted.iloc[i]
                     row_j = group_sorted.iloc[j]
+                    ctr_diff = row_i[self.label_column] - row_j[self.label_column]
                     
-                    pairwise_row = {
+                    # 过滤CTR差异太小的pair
+                    if abs(ctr_diff) < self.min_ctr_diff:
+                        continue
+                    
+                    # 正样本
+                    pairs.append({
                         'query': query,
                         'text1': row_i['text'],
                         'text2': row_j['text'],
-                        'label': 1 if row_i[self.label_column] > row_j[self.label_column] else 0
-                    }
-                    pairwise_data.append(pairwise_row)
+                        'label': 1
+                    })
+                    
+                    # 负样本（交换顺序）
+                    pairs.append({
+                        'query': query,
+                        'text1': row_j['text'],
+                        'text2': row_i['text'],
+                        'label': 0
+                    })
+            
+            # 限制每个query的样本数
+            if len(pairs) > self.max_pairs_per_query:
+                pairs = np.random.choice(pairs, self.max_pairs_per_query, replace=False).tolist()
+            
+            pairwise_data.extend(pairs)
         
         return pd.DataFrame(pairwise_data)
     
