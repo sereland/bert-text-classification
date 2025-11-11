@@ -238,13 +238,13 @@ def create_sample_ctr_data():
     
     return df
 
-def demo_conversion():
+def demo_conversion(input_csv_path: str = 'data/test.csv', output_csv_path: str = 'data/train.csv'):
     """演示CTR到Pairwise的转换"""
     logger.info("=== CTR到Pairwise数据转换演示 ===")
     
     # 创建示例CTR数据
     # ctr_df = create_sample_ctr_data()
-    ctr_df = pd.read_csv('data/test.csv', sep='\t')
+    ctr_df = pd.read_csv(input_csv_path, sep='\t')
     
     # 转换为Pairwise数据
     converter = CTRToPairwiseConverter(
@@ -254,7 +254,7 @@ def demo_conversion():
     )
     
     pairwise_df = converter.convert_data(ctr_df)
-    converter.save_pairwise_data(pairwise_df, 'data/train.csv')
+    converter.save_pairwise_data(pairwise_df, output_csv_path)
     
     # 显示转换结果统计
     logger.info(f"转换统计:")
@@ -271,4 +271,9 @@ def demo_conversion():
     logger.info(f"\n{pairwise_df.head()}")
 
 if __name__ == "__main__":
-    demo_conversion()
+    import sys
+
+    input_csv_path = sys.argv[1]
+    output_csv_path = sys.argv[2]
+    print(f'Converting CTR data from {input_csv_path} to Pairwise data at {output_csv_path}...')
+    demo_conversion(input_csv_path, output_csv_path)
