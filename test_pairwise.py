@@ -133,8 +133,10 @@ def test_pairwise_training():
     
     # 测试从文件预测
     logger.info("测试从文件预测...")
-    predictions = predictor.predict_texts(
+    from train import predict_texts
+    predictions = predict_texts(
         config=config,
+        model=model,
         input_file='data/test.csv',
         output_file='pairwise_predictions.csv'
     )
