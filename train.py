@@ -152,43 +152,59 @@ def train_model(config, model, train_dataloader, val_dataloader=None):
 
 def evaluate_model(config, model, test_dataloader):
     """评估模型"""
-    # 创建预测器
-    predictor = ModelPredictor(model, AutoTokenizer.from_pretrained(config.MODEL_NAME), config)
-    
     # 评估模型
     model.eval()
     all_predictions = []
     all_labels = []
     
-    for batch in test_dataloader:
-        texts = []  # 这里需要从batch中提取文本，但我们的数据集没有保存原始文本
-        labels = batch['labels'].cpu().numpy()
-        
-        # 由于数据集没有保存原始文本，我们需要重新构建
-        # 这里简化处理，直接使用模型的输出
-        batch = {k: v.to(config.DEVICE) for k, v in batch.items() if k != 'labels'}
-        
-        with torch.no_grad():
-            outputs = model(**batch)
+    with torch.no_grad():
+        for batch in tqdm(test_dataloader, desc="评估"):
+            # 将数据移动到设备
+            batch = {k: v.to(config.DEVICE) for k, v in batch.items()}
             
-            if config.TASK_TYPE == "classification":
-                predictions = torch.argmax(outputs['logits'], dim=-1).cpu().numpy()
-            else:  # regression
-                predictions = outputs['logits'].squeeze().cpu().numpy()
-        
-        all_predictions.extend(predictions)
-        all_labels.extend(labels)
+            # 前向传播
+            if config.TASK_TYPE == "pairwise":
+                # pairwise任务：分别处理两个文本
+                text1_inputs = {k.replace('text1_', ''): v for k, v in batch.items() if k.startswith('text1_')}
+                text2_inputs = {k.replace('text2_', ''): v for k, v in batch.items() if k.startswith('text2_')}
+                
+                scores1 = model(**text1_inputs)['logits'].squeeze()
+                scores2 = model(**text2_inputs)['logits'].squeeze()
+                
+                # 收集预测和标签
+                # 对于pairwise任务，预测为text1的得分是否大于text2的得分
+                predictions = (scores1 > scores2).long()  # 使用long类型确保是整数
+                labels = batch['labels']
+                
+                all_predictions.extend(predictions.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
+            else:
+                # 分类或回归任务
+                outputs = model(**batch)
+                
+                if config.TASK_TYPE == "classification":
+                    predictions = torch.argmax(outputs['logits'], dim=-1)
+                else:  # regression
+                    predictions = outputs['logits'].squeeze()
+                
+                all_predictions.extend(predictions.cpu().numpy())
+                all_labels.extend(batch['labels'].cpu().numpy())
     
     # 计算指标
     from utils.bert_utils import MetricsCalculator
     
-    if config.TASK_TYPE == "classification":
+    if config.TASK_TYPE == "pairwise":
+        # pairwise任务使用分类指标（实际上是二分类）
         metrics = MetricsCalculator.calculate_classification_metrics(
-            all_labels, all_predictions
+            np.array(all_labels), np.array(all_predictions)
+        )
+    elif config.TASK_TYPE == "classification":
+        metrics = MetricsCalculator.calculate_classification_metrics(
+            np.array(all_labels), np.array(all_predictions)
         )
     else:  # regression
         metrics = MetricsCalculator.calculate_regression_metrics(
-            all_labels, all_predictions
+            np.array(all_labels), np.array(all_predictions)
         )
     
     logger.info(f"评估指标: {metrics}")

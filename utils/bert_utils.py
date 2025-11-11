@@ -6,7 +6,8 @@ from transformers import AutoModel, AutoTokenizer, get_linear_schedule_with_warm
 from transformers import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score, classification_report
+from sklearn import metrics
 import logging
 from tqdm import tqdm
 import os
@@ -176,6 +177,10 @@ class MetricsCalculator:
         precision, recall, f1, _ = precision_recall_fscore_support(
             y_true, y_pred, average='weighted'
         )
+        print(classification_report(y_true, y_pred))
+        fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label=1)
+        auc = metrics.auc(fpr, tpr)
+        print(f'AUC: {auc}')
         
         return {
             'accuracy': accuracy,
@@ -378,7 +383,7 @@ class ModelTrainer:
                     
                     # 收集预测和标签
                     # 对于pairwise任务，预测为text1的得分是否大于text2的得分
-                    predictions = (scores1 > scores2).float()
+                    predictions = (scores1 > scores2).long()  # 使用long类型确保是整数
                     labels = batch['labels']
                     
                     all_predictions.extend(predictions.cpu().numpy())
