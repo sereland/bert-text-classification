@@ -387,8 +387,8 @@ class ModelTrainer:
         
         with torch.no_grad():
             for batch in tqdm(self.val_dataloader, desc="验证"):
-                # 将数据移动到设备
-                batch = {k: v.to(self.device) for k, v in batch.items()}
+                # 将数据移动到设备（跳过query字段，因为它可能是列表）
+                batch = {k: v.to(self.device) if k != 'query' and hasattr(v, 'to') else v for k, v in batch.items()}
                 
                 # 前向传播
                 if self.config.TASK_TYPE == "pairwise":
@@ -603,8 +603,8 @@ class ModelTrainer:
             progress_bar = tqdm(self.train_dataloader, desc="训练")
             
             for batch_idx, batch in enumerate(progress_bar):
-                # 将数据移动到设备
-                batch = {k: v.to(self.device) for k, v in batch.items()}
+                # 将数据移动到设备（跳过query字段，因为它可能是列表）
+                batch = {k: v.to(self.device) if k != 'query' and hasattr(v, 'to') else v for k, v in batch.items()}
                 
                 # 前向传播
                 if self.config.TASK_TYPE == "pairwise":
