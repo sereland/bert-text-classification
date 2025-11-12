@@ -178,10 +178,10 @@ class MetricsCalculator:
             y_true, y_pred, average='weighted'
         )
         print(classification_report(y_true, y_pred))
-        # fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label=1)
-        # auc = metrics.auc(fpr, tpr)
-        auc = roc_auc_score(y_true, y_pred)
-        print(f'AUC: {auc}')
+        fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label=1)
+        auc1 = metrics.auc(fpr, tpr)
+        auc2 = roc_auc_score(y_true, y_pred)
+        print(f'AUC1: {auc1}, AUC2: {auc2}')
         
         return {
             'accuracy': accuracy,
