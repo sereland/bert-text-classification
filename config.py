@@ -51,11 +51,11 @@ class Config:
     PATIENCE = 3
     
     # 模型选择配置
-    BEST_MODEL_CRITERION = "loss"  # 可选: "loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg"
-    # 对于分类任务：loss越小越好，accuracy/f1/precision/recall越大越好
-    # 对于回归任务：loss/mse/mae/rmse越小越好，r2越大越好
-    # 对于pairwise任务：loss越小越好，auc/ndcg越大越好
-    
+    # 模型选择配置
+    BEST_MODEL_CRITERION = "loss"  # 可选: "loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg", "gauc", "ndcg5", "ndcg10"
+    # 对于分类任务：loss越小越好，accuracy/f1/precision/recall/gauc越大越好
+    # 对于回归任务：loss/mse/mae/rmse越小越好，r2/gauc越大越好
+    # 对于pairwise任务：loss越小越好，auc/ndcg/gauc/ndcg5/ndcg10越大越好
     # 数据处理配置
     TEXT_COLUMNS = ["query", "text"]  # 文本列名（对于pairwise任务，应该是["query", "text1", "text2"]）
     TEXT_COLUMNS_PAIRWISE = ["query", "text1", "text2"]  # pairwise任务文本列名

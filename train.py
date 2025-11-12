@@ -81,10 +81,10 @@ def setup_args():
                        help="早停耐心值")
     
     # 模型选择参数
+    # 模型选择参数
     parser.add_argument("--best_model_criterion", type=str, default="loss",
-                       choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg"],
+                       choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg", "gauc", "ndcg5", "ndcg10"],
                        help="最优模型选择标准")
-    
     # 验证集配置参数
     parser.add_argument("--use_validation_set", action="store_true",
                        help="是否使用独立的验证集（False时直接在测试集上验证）")

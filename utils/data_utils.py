@@ -14,12 +14,13 @@ logger = logging.getLogger(__name__)
 class TextDataset(Dataset):
     """文本数据集类"""
     
-    def __init__(self, 
-                 texts: List[str], 
-                 labels: List[float], 
+    def __init__(self,
+                 texts: List[str],
+                 labels: List[float],
                  tokenizer: AutoTokenizer,
-                 max_length: int = 128,
-                 is_regression: bool = False):
+                 max_length: int = 256,
+                 is_regression: bool = False,
+                 queries: List[str] = None):
         """
         初始化数据集
         
@@ -29,9 +30,11 @@ class TextDataset(Dataset):
             tokenizer: 分词器
             max_length: 最大长度
             is_regression: 是否为回归任务
+            queries: query列表（用于GAUC计算）
         """
         self.texts = texts
         self.labels = labels
+        self.queries = queries or [f"query_{i}" for i in range(len(texts))]
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.is_regression = is_regression
@@ -42,6 +45,7 @@ class TextDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         text = str(self.texts[idx])
         label = self.labels[idx]
+        query = str(self.queries[idx])
         
         # 分词和编码
         encoding = self.tokenizer(
@@ -61,6 +65,9 @@ class TextDataset(Dataset):
         else:
             encoding['labels'] = torch.tensor(label, dtype=torch.long)
         
+        # 添加query信息（用于GAUC计算）
+        encoding['query'] = query
+        
         return encoding
 
 class PairwiseTextDataset(Dataset):
@@ -71,7 +78,8 @@ class PairwiseTextDataset(Dataset):
                  texts2: List[str],
                  labels: List[float],
                  tokenizer: AutoTokenizer,
-                 max_length: int = 128):
+                 queries: List[str] = None,
+                 max_length: int = 256):
         """
         初始化成对文本数据集
         
@@ -79,12 +87,14 @@ class PairwiseTextDataset(Dataset):
             texts1: 第一个文本列表
             texts2: 第二个文本列表
             labels: 标签列表（1表示text1优于text2，0表示text2优于text1）
+            queries: query文本列表（用于GAUC和NDCG计算）
             tokenizer: 分词器
             max_length: 最大长度
         """
         self.texts1 = texts1
         self.texts2 = texts2
         self.labels = labels
+        self.queries = queries or [f"query_{i}" for i in range(len(texts1))]
         self.tokenizer = tokenizer
         self.max_length = max_length
     
@@ -95,6 +105,7 @@ class PairwiseTextDataset(Dataset):
         text1 = str(self.texts1[idx])
         text2 = str(self.texts2[idx])
         label = self.labels[idx]
+        query = str(self.queries[idx])
         
         # 分别对两个文本进行分词和编码
         encoding1 = self.tokenizer(
@@ -122,6 +133,9 @@ class PairwiseTextDataset(Dataset):
         
         # 添加标签（pairwise标签为浮点数）
         encoding['labels'] = torch.tensor(label, dtype=torch.float)
+        
+        # 添加query信息（用于GAUC和NDCG计算）
+        encoding['query'] = query
         
         return encoding
 
@@ -161,7 +175,7 @@ class PairwiseDataProcessor:
             logger.error(f"加载数据文件失败: {e}")
             raise
     
-    def preprocess_data(self, df: pd.DataFrame) -> Tuple[List[str], List[str], List[float]]:
+    def preprocess_data(self, df: pd.DataFrame) -> Tuple[List[str], List[str], List[float], List[str]]:
         """
         预处理成对数据
         
@@ -169,7 +183,7 @@ class PairwiseDataProcessor:
             df: 数据框
             
         Returns:
-            文本1列表、文本2列表和标签列表的元组
+            文本1列表、文本2列表、标签列表和query列表的元组
         """
         # 检查必要的列是否存在
         missing_cols = [col for col in self.text_columns + [self.label_column]
@@ -182,28 +196,31 @@ class PairwiseDataProcessor:
         
         texts1 = []
         texts2 = []
+        queries = []
         
         for _, row in df.iterrows():
             # 构建text1: [CLS]query[SEP]text1[SEP]
             text1 = f"[CLS]{row[query_col]}[SEP]{row[text1_col]}[SEP]"
             # 构建text2: [CLS]query[SEP]text2[SEP]
             text2 = f"[CLS]{row[query_col]}[SEP]{row[text2_col]}[SEP]"
-            
+        
             texts1.append(text1)
             texts2.append(text2)
+            queries.append(str(row[query_col]))  # 保存原始query文本
         
         # 处理标签
         labels = df[self.label_column].tolist()
         
         logger.info(f"预处理完成，文本对数量: {len(texts1)}, 标签数量: {len(labels)}")
-        return texts1, texts2, labels
+        return texts1, texts2, labels, queries
     
     def split_data(self,
                    texts1: List[str],
                    texts2: List[str],
                    labels: List[float],
+                   queries: List[str] = None,
                    test_size: float = 0.2,
-                   random_state: int = 42) -> Tuple[List[str], List[str], List[str], List[str], List[float], List[float]]:
+                   random_state: int = 42) -> Tuple[List[str], List[str], List[str], List[str], List[float], List[float], List[str], List[str]]:
         """
         分割成对数据为训练集和验证集
         
@@ -211,11 +228,12 @@ class PairwiseDataProcessor:
             texts1: 第一个文本列表
             texts2: 第二个文本列表
             labels: 标签列表
+            queries: query列表
             test_size: 测试集比例
             random_state: 随机种子
             
         Returns:
-            训练文本1、训练文本2、验证文本1、验证文本2、训练标签、验证标签的元组
+            训练文本1、训练文本2、验证文本1、验证文本2、训练标签、验证标签、训练query、验证query的元组
         """
         # 使用相同的索引分割所有数据
         indices = list(range(len(texts1)))
@@ -226,19 +244,22 @@ class PairwiseDataProcessor:
         train_texts1 = [texts1[i] for i in train_indices]
         train_texts2 = [texts2[i] for i in train_indices]
         train_labels = [labels[i] for i in train_indices]
+        train_queries = [queries[i] for i in train_indices] if queries else [f"query_{i}" for i in train_indices]
         
         val_texts1 = [texts1[i] for i in val_indices]
         val_texts2 = [texts2[i] for i in val_indices]
         val_labels = [labels[i] for i in val_indices]
+        val_queries = [queries[i] for i in val_indices] if queries else [f"query_{i}" for i in val_indices]
         
         logger.info(f"数据分割完成 - 训练集: {len(train_texts1)}, 验证集: {len(val_texts1)}")
-        return train_texts1, train_texts2, val_texts1, val_texts2, train_labels, val_labels
+        return train_texts1, train_texts2, val_texts1, val_texts2, train_labels, val_labels, train_queries, val_queries
     
     def create_dataloader(self,
                          texts1: List[str],
                          texts2: List[str],
                          labels: List[float],
                          tokenizer: AutoTokenizer,
+                         queries: List[str] = None,
                          batch_size: int = 32,
                          max_length: int = 128,
                          shuffle: bool = True) -> DataLoader:
@@ -250,6 +271,7 @@ class PairwiseDataProcessor:
             texts2: 第二个文本列表
             labels: 标签列表
             tokenizer: 分词器
+            queries: query文本列表（用于GAUC和NDCG计算）
             batch_size: 批次大小
             max_length: 最大长度
             shuffle: 是否打乱数据
@@ -261,6 +283,7 @@ class PairwiseDataProcessor:
             texts1=texts1,
             texts2=texts2,
             labels=labels,
+            queries=queries,
             tokenizer=tokenizer,
             max_length=max_length
         )
@@ -351,38 +374,48 @@ class DataProcessor:
         logger.info(f"预处理完成，文本数量: {len(texts)}, 标签数量: {len(labels)}")
         return texts, labels
     
-    def split_data(self, 
-                   texts: List[str], 
+    def split_data(self,
+                   texts: List[str],
                    labels: List[float],
+                   queries: List[str] = None,
                    test_size: float = 0.2,
-                   random_state: int = 42) -> Tuple[List[str], List[str], List[float], List[float]]:
+                   random_state: int = 42) -> Tuple[List[str], List[str], List[float], List[float], List[str], List[str]]:
         """
         分割数据为训练集和验证集
         
         Args:
             texts: 文本列表
             labels: 标签列表
+            queries: query列表
             test_size: 测试集比例
             random_state: 随机种子
             
         Returns:
-            训练文本、验证文本、训练标签、验证标签的元组
+            训练文本、验证文本、训练标签、验证标签、训练query、验证query的元组
         """
+        if queries is None:
+            queries = [f"query_{i}" for i in range(len(texts))]
+            
         train_texts, val_texts, train_labels, val_labels = train_test_split(
-            texts, labels, test_size=test_size, random_state=random_state, 
+            texts, labels, test_size=test_size, random_state=random_state,
             stratify=labels if not self.is_regression else None
         )
         
+        # 分割queries
+        train_queries = [queries[i] for i in range(len(texts)) if i in range(len(train_texts))]
+        val_queries = [queries[i] for i in range(len(texts)) if i in range(len(train_texts), len(train_texts) + len(val_texts))]
+        
         logger.info(f"数据分割完成 - 训练集: {len(train_texts)}, 验证集: {len(val_texts)}")
-        return train_texts, val_texts, train_labels, val_labels
+        return train_texts, val_texts, train_labels, val_labels, train_queries, val_queries
     
     def create_dataloader(self,
-                         texts: List[str],
-                         labels: List[float],
-                         tokenizer: AutoTokenizer,
-                         batch_size: int = 32,
-                         max_length: int = 128,
-                         shuffle: bool = True) -> DataLoader:
+                          texts: List[str],
+                          labels: List[float],
+                          tokenizer: AutoTokenizer,
+                          queries: List[str] = None,
+                          batch_size: int = 32,
+                          max_length: int = 128,
+                          shuffle: bool = True) -> DataLoader:
         """
         创建数据加载器
         
@@ -390,6 +423,7 @@ class DataProcessor:
             texts: 文本列表
             labels: 标签列表
             tokenizer: 分词器
+            queries: query列表（用于GAUC计算）
             batch_size: 批次大小
             max_length: 最大长度
             shuffle: 是否打乱数据
@@ -402,7 +436,8 @@ class DataProcessor:
             labels=labels,
             tokenizer=tokenizer,
             max_length=max_length,
-            is_regression=self.is_regression
+            is_regression=self.is_regression,
+            queries=queries
         )
         
         dataloader = DataLoader(
@@ -466,43 +501,43 @@ def create_data_loaders(config,
         train_df = processor.load_data(config.TRAIN_FILE)
         
         # 预处理数据
-        texts1, texts2, labels = processor.preprocess_data(train_df)
+        texts1, texts2, labels, queries = processor.preprocess_data(train_df)
         
         # 根据配置决定是否使用独立验证集
         if getattr(config, 'USE_VALIDATION_SET', True):
             # 使用独立验证集：从训练集中划分验证集
-            train_texts1, train_texts2, val_texts1, val_texts2, train_labels, val_labels = processor.split_data(
-                texts1, texts2, labels, test_size=0.2
+            train_texts1, train_texts2, val_texts1, val_texts2, train_labels, val_labels, train_queries, val_queries = processor.split_data(
+                texts1, texts2, labels, queries, test_size=0.2
             )
-            
+    
             # 创建数据加载器
             train_dataloader = processor.create_dataloader(
-                train_texts1, train_texts2, train_labels, tokenizer,
+                train_texts1, train_texts2, train_labels, train_queries, tokenizer,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=True
             )
-            
+    
             val_dataloader = processor.create_dataloader(
-                val_texts1, val_texts2, val_labels, tokenizer,
+                val_texts1, val_texts2, val_labels, val_queries, tokenizer,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=False
             )
-            
+    
             logger.info("使用独立验证集：从训练集中划分20%作为验证集")
         else:
             # 不使用独立验证集：直接使用测试集作为验证集
             train_dataloader = processor.create_dataloader(
-                texts1, texts2, labels, tokenizer,
+                texts1, texts2, labels, queries, tokenizer,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=True
             )
-            
+    
             # 使用测试集作为验证集
             val_dataloader = create_test_dataloader(config, tokenizer, processor)
-            
+    
             logger.info("不使用独立验证集：将直接使用测试集作为验证集")
         
         # pairwise任务类别数固定为1（输出单个得分）
@@ -522,23 +557,26 @@ def create_data_loaders(config,
         # 预处理数据
         texts, labels = processor.preprocess_data(train_df)
         
+        # 生成默认queries（如果没有query列，则使用索引作为query）
+        queries = [f"query_{i}" for i in range(len(texts))]
+        
         # 根据配置决定是否使用独立验证集
         if getattr(config, 'USE_VALIDATION_SET', True):
             # 使用独立验证集：从训练集中划分验证集
-            train_texts, val_texts, train_labels, val_labels = processor.split_data(
-                texts, labels, test_size=0.2
+            train_texts, val_texts, train_labels, val_labels, train_queries, val_queries = processor.split_data(
+                texts, labels, queries, test_size=0.2
             )
             
             # 创建数据加载器
             train_dataloader = processor.create_dataloader(
-                train_texts, train_labels, tokenizer,
+                train_texts, train_labels, tokenizer, train_queries,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=True
             )
             
             val_dataloader = processor.create_dataloader(
-                val_texts, val_labels, tokenizer,
+                val_texts, val_labels, tokenizer, val_queries,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=False
@@ -548,7 +586,7 @@ def create_data_loaders(config,
         else:
             # 不使用独立验证集：直接使用测试集作为验证集
             train_dataloader = processor.create_dataloader(
-                texts, labels, tokenizer,
+                texts, labels, tokenizer, queries,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=True
@@ -591,11 +629,11 @@ def create_test_dataloader(config,
         test_df = processor.load_data(config.TEST_FILE)
         
         # 预处理数据
-        texts1, texts2, labels = processor.preprocess_data(test_df)
+        texts1, texts2, labels, queries = processor.preprocess_data(test_df)
         
         # 创建测试数据加载器
         test_dataloader = processor.create_dataloader(
-            texts1, texts2, labels, tokenizer,
+            texts1, texts2, labels, queries, tokenizer,
             batch_size=config.BATCH_SIZE,
             max_length=config.MAX_LENGTH,
             shuffle=False

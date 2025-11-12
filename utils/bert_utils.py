@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score, classification_report, roc_auc_score
 from sklearn import metrics
+from utils.metrics_utils import RankingMetricsCalculator
 import logging
 from tqdm import tqdm
 import os
@@ -377,6 +378,12 @@ class ModelTrainer:
         all_predictions = []
         all_prediction_pos_scores = []
         all_labels = []
+        all_prediction_pos_scores = []  # 用于计算AUC的正类概率
+        all_labels = []
+        
+        # 用于GAUC和NDCG计算的额外数据
+        all_score_diffs = []  # 用于pairwise任务的GAUC计算
+        all_queries = []      # 用于分组计算指标
         
         with torch.no_grad():
             for batch in tqdm(self.val_dataloader, desc="验证"):
@@ -402,6 +409,26 @@ class ModelTrainer:
                     
                     all_predictions.extend(predictions.cpu().numpy())
                     all_labels.extend(labels.cpu().numpy())
+                    
+                    # 收集用于GAUC计算的数据
+                    score_diffs = (scores1 - scores2).cpu().numpy()
+                    all_score_diffs.extend(score_diffs)
+                    
+                    # 收集query信息
+                    if 'query' in batch:
+                        batch_queries = batch['query']
+                        if isinstance(batch_queries, torch.Tensor):
+                            batch_queries = batch_queries.cpu().numpy()
+                        elif isinstance(batch_queries, list):
+                            pass  # 已经是列表
+                        else:
+                            batch_queries = [str(q) for q in batch_queries]
+                        all_queries.extend(batch_queries)
+                    else:
+                        # 如果没有query信息，生成默认query
+                        batch_queries = [f"query_{i}" for i in range(len(labels))]
+                        all_queries.extend(batch_queries)
+                        
                 else:
                     # 分类或回归任务
                     outputs = self.model(**batch)
@@ -410,12 +437,34 @@ class ModelTrainer:
                     # 收集预测和标签
                     if self.config.TASK_TYPE == "classification":
                         predictions = torch.argmax(outputs['logits'], dim=-1)
+                        # 收集正类概率用于AUC计算
+                        pos_scores = torch.softmax(outputs['logits'], dim=-1)[:, 1].cpu().numpy()
+                        all_prediction_pos_scores.extend(pos_scores)
                     else:  # regression
                         predictions = outputs['logits'].squeeze()
                     
                     all_predictions.extend(predictions.cpu().numpy())
-                    all_prediction_pos_scores.extend(outputs['logits'][:, 1].cpu().numpy())
                     all_labels.extend(batch['labels'].cpu().numpy())
+                    
+                    # 对于分类任务，也收集得分用于GAUC计算
+                    if self.config.TASK_TYPE == "classification":
+                        scores = torch.softmax(outputs['logits'], dim=-1)[:, 1].cpu().numpy()  # 正类概率
+                        all_score_diffs.extend(scores)
+                        
+                        # 收集query信息
+                        if 'query' in batch:
+                            batch_queries = batch['query']
+                            if isinstance(batch_queries, torch.Tensor):
+                                batch_queries = batch_queries.cpu().numpy()
+                            elif isinstance(batch_queries, list):
+                                pass  # 已经是列表
+                            else:
+                                batch_queries = [str(q) for q in batch_queries]
+                            all_queries.extend(batch_queries)
+                        else:
+                            # 如果没有query信息，生成默认query
+                            batch_queries = [f"query_{i}" for i in range(len(batch['labels']))]
+                            all_queries.extend(batch_queries)
                 
                 # 累计损失
                 total_loss += loss.item()
@@ -425,11 +474,44 @@ class ModelTrainer:
         
         # 计算指标
         if self.config.TASK_TYPE == "pairwise":
-            # pairwise任务使用分类指标（实际上是二分类）
-            metrics = MetricsCalculator.calculate_classification_metrics(
-                np.array(all_labels), np.array(all_predictions)
-            )
+            # pairwise任务使用排序指标
+            if all_queries and len(all_queries) == len(all_labels):
+                # 有query信息，计算GAUC和NDCG
+                metrics = RankingMetricsCalculator.calculate_pairwise_metrics(
+                    np.array(all_labels),
+                    np.array(all_predictions),
+                    np.array(all_score_diffs),
+                    all_queries,
+                    k_values=[5, 10]
+                )
+            else:
+                # 没有query信息，使用基础分类指标
+                metrics = MetricsCalculator.calculate_classification_metrics(
+                    np.array(all_labels), np.array(all_predictions)
+                )
+                logger.warning("没有query信息，无法计算GAUC和NDCG，使用基础分类指标")
         elif self.config.TASK_TYPE == "classification":
+            # 分类任务：如果有query信息，计算GAUC
+            if all_queries and len(all_queries) == len(all_labels):
+                # 计算基础分类指标
+                base_metrics = MetricsCalculator.calculate_classification_metrics(
+                    np.array(all_labels), np.array(all_predictions)
+                )
+                
+                # 计算GAUC
+                try:
+                    gauc = compute_gauc(
+                        np.array(all_labels),
+                        np.array(all_score_diffs),
+                        all_queries
+                    )
+                    base_metrics['gauc'] = gauc
+                except Exception as e:
+                    logger.warning(f"GAUC计算失败: {e}")
+                    base_metrics['gauc'] = 0.0
+                
+                metrics = base_metrics
+
             metrics = MetricsCalculator.calculate_classification_metrics(
                 np.array(all_labels), np.array(all_predictions)
             )
@@ -437,9 +519,19 @@ class ModelTrainer:
                 np.array(all_labels), np.array(all_prediction_pos_scores)
             )
         else:  # regression
-            metrics = MetricsCalculator.calculate_regression_metrics(
-                np.array(all_labels), np.array(all_predictions)
-            )
+            # 回归任务：如果有query信息，计算GAUC和NDCG
+            if all_queries and len(all_queries) == len(all_labels):
+                metrics = RankingMetricsCalculator.calculate_ctr_metrics(
+                    np.array(all_labels),
+                    np.array(all_score_diffs),
+                    all_queries,
+                    k_values=[5, 10]
+                )
+            else:
+                # 没有query信息，使用基础回归指标
+                metrics = MetricsCalculator.calculate_regression_metrics(
+                    np.array(all_labels), np.array(all_predictions)
+                )
         
         return avg_loss, metrics
     def _calculate_model_score(self, val_loss: float, val_metrics: Dict[str, float]) -> float:
