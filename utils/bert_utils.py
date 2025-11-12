@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score, classification_report, roc_auc_score
 from sklearn import metrics
-from utils.metrics_utils import RankingMetricsCalculator
+from utils.metrics_utils import RankingMetricsCalculator, compute_gauc
 import logging
 from tqdm import tqdm
 import os
