@@ -162,6 +162,22 @@ class MetricsCalculator:
     """指标计算器"""
     
     @staticmethod
+    def calculate_auc(y_true: np.ndarray, y_scores: np.ndarray) -> float:
+        """
+        计算AUC指标
+        
+        Args:
+            y_true: 真实标签
+            y_scores: 预测得分
+            
+        Returns:
+            AUC值
+        """
+        auc = roc_auc_score(y_true, y_scores)
+        print(f'auc: {auc}')
+        return auc
+
+    @staticmethod
     def calculate_classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
         """
         计算分类指标
@@ -178,10 +194,6 @@ class MetricsCalculator:
             y_true, y_pred, average='weighted'
         )
         print(classification_report(y_true, y_pred))
-        fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label=1)
-        auc1 = metrics.auc(fpr, tpr)
-        auc2 = roc_auc_score(y_true, y_pred)
-        print(f'AUC1: {auc1}, AUC2: {auc2}')
         
         return {
             'accuracy': accuracy,
@@ -363,6 +375,7 @@ class ModelTrainer:
         self.model.eval()
         total_loss = 0.0
         all_predictions = []
+        all_prediction_pos_scores = []
         all_labels = []
         
         with torch.no_grad():
@@ -401,6 +414,7 @@ class ModelTrainer:
                         predictions = outputs['logits'].squeeze()
                     
                     all_predictions.extend(predictions.cpu().numpy())
+                    all_prediction_pos_scores.extend(outputs['logits'][:1].cpu().numpy())
                     all_labels.extend(batch['labels'].cpu().numpy())
                 
                 # 累计损失
@@ -418,6 +432,9 @@ class ModelTrainer:
         elif self.config.TASK_TYPE == "classification":
             metrics = MetricsCalculator.calculate_classification_metrics(
                 np.array(all_labels), np.array(all_predictions)
+            )
+            auc = MetricsCalculator.calculate_auc(
+                np.array(all_labels), np.array(all_prediction_pos_scores)
             )
         else:  # regression
             metrics = MetricsCalculator.calculate_regression_metrics(
