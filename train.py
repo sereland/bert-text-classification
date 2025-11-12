@@ -235,7 +235,6 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
         for _, row in df.iterrows():
             # 使用与训练时相同的合并方式：" [SEP] "作为分隔符
             combined_text = "[SEP]".join([str(row[col]) for col in text_columns if col in row])
-            combined_text = "[CLS]" + combined_text + "[SEP]"
             texts_to_predict.append(combined_text)
         
         logger.info(f"加载了 {len(texts_to_predict)} 条数据进行预测")

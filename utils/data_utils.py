@@ -335,7 +335,6 @@ class DataProcessor:
         for _, row in df.iterrows():
             # 将多个文本列合并为一个字符串
             combined_text = "[SEP]".join([str(row[col]) for col in self.text_columns])
-            combined_text = "[CLS]" + combined_text + "[SEP]"
             texts.append(combined_text)
         
         # 处理标签
