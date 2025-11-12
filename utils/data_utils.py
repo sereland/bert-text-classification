@@ -337,7 +337,7 @@ class DataProcessor:
             logger.error(f"加载数据文件失败: {e}")
             raise
     
-    def preprocess_data(self, df: pd.DataFrame) -> Tuple[List[str], List[float]]:
+    def preprocess_data(self, df: pd.DataFrame) -> Tuple[List[str], List[float], List[str]]:
         """
         预处理数据
         
@@ -345,20 +345,37 @@ class DataProcessor:
             df: 数据框
             
         Returns:
-            文本列表和标签列表的元组
+            文本列表、标签列表和query列表的元组
         """
         # 检查必要的列是否存在
-        # missing_cols = [col for col in self.text_columns + [self.label_column] 
-        #                 if col not in df.columns]
-        # if missing_cols:
-        #     raise ValueError(f"数据框中缺少以下列: {missing_cols}")
+        missing_cols = [col for col in self.text_columns + [self.label_column]
+                        if col not in df.columns]
+        if missing_cols:
+            raise ValueError(f"数据框中缺少以下列: {missing_cols}")
         
         # 合并文本列
         texts = []
-        for _, row in df.iterrows():
-            # 将多个文本列合并为一个字符串
-            combined_text = "[SEP]".join([str(row[col]) for col in self.text_columns])
-            texts.append(combined_text)
+        queries = []
+        
+        # 如果text_columns包含query列，则提取query信息
+        if "query" in self.text_columns:
+            for _, row in df.iterrows():
+                # 提取query信息
+                query = str(row["query"])
+                queries.append(query)
+                
+                # 将其他文本列合并为一个字符串（排除query列）
+                text_cols = [col for col in self.text_columns if col != "query"]
+                combined_text = "[SEP]".join([str(row[col]) for col in text_cols])
+                texts.append(combined_text)
+        else:
+            # 如果没有query列，生成默认query
+            for _, row in df.iterrows():
+                # 将所有文本列合并为一个字符串
+                logger.warn('没有query列，生成默认query')
+                combined_text = "[SEP]".join([str(row[col]) for col in self.text_columns])
+                texts.append(combined_text)
+                queries.append(f"query_{len(queries)}")
         
         # 处理标签
         labels = df[self.label_column].tolist()
@@ -371,8 +388,8 @@ class DataProcessor:
             else:
                 labels = self.label_encoder.transform(labels)
         
-        logger.info(f"预处理完成，文本数量: {len(texts)}, 标签数量: {len(labels)}")
-        return texts, labels
+        logger.info(f"预处理完成，文本数量: {len(texts)}, 标签数量: {len(labels)}, query数量: {len(queries)}")
+        return texts, labels, queries
     
     def split_data(self,
                    texts: List[str],
@@ -555,10 +572,7 @@ def create_data_loaders(config,
         train_df = processor.load_data(config.TRAIN_FILE)
         
         # 预处理数据
-        texts, labels = processor.preprocess_data(train_df)
-        
-        # 生成默认queries（如果没有query列，则使用索引作为query）
-        queries = [f"query_{i}" for i in range(len(texts))]
+        texts, labels, queries = processor.preprocess_data(train_df)
         
         # 根据配置决定是否使用独立验证集
         if getattr(config, 'USE_VALIDATION_SET', True):
@@ -651,11 +665,11 @@ def create_test_dataloader(config,
         test_df = processor.load_data(config.TEST_FILE)
         
         # 预处理数据
-        texts, labels = processor.preprocess_data(test_df)
+        texts, labels, queries = processor.preprocess_data(test_df)
         
         # 创建测试数据加载器
         test_dataloader = processor.create_dataloader(
-            texts, labels, tokenizer,
+            texts, labels, tokenizer, queries,
             batch_size=config.BATCH_SIZE,
             max_length=config.MAX_LENGTH,
             shuffle=False
