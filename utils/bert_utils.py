@@ -431,9 +431,11 @@ class ModelTrainer:
                         
                 else:
                     # 分类或回归任务
-                    outputs = self.model(**batch)
+                    # 分类或回归任务
+                    # 移除query字段，因为模型不接受这个参数
+                    model_batch = {k: v for k, v in batch.items() if k != 'query'}
+                    outputs = self.model(**model_batch)
                     loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
-                    
                     # 收集预测和标签
                     if self.config.TASK_TYPE == "classification":
                         predictions = torch.argmax(outputs['logits'], dim=-1)
@@ -619,7 +621,9 @@ class ModelTrainer:
                     loss = self.criterion(scores1, scores2, batch['labels'])
                 else:
                     # 分类或回归任务
-                    outputs = self.model(**batch)
+                    # 移除query字段，因为模型不接受这个参数
+                    model_batch = {k: v for k, v in batch.items() if k != 'query'}
+                    outputs = self.model(**model_batch)
                     loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
                 
                 # 反向传播
