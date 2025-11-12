@@ -6,7 +6,7 @@ from transformers import AutoModel, AutoTokenizer, get_linear_schedule_with_warm
 from transformers import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score, classification_report
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score, classification_report, from sklearn.metrics import roc_auc_score
 from sklearn import metrics
 import logging
 from tqdm import tqdm
@@ -178,8 +178,9 @@ class MetricsCalculator:
             y_true, y_pred, average='weighted'
         )
         print(classification_report(y_true, y_pred))
-        fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label=1)
-        auc = metrics.auc(fpr, tpr)
+        # fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label=1)
+        # auc = metrics.auc(fpr, tpr)
+        auc = roc_auc_score(y_true, y_pred)
         print(f'AUC: {auc}')
         
         return {
