@@ -414,7 +414,7 @@ class ModelTrainer:
                         predictions = outputs['logits'].squeeze()
                     
                     all_predictions.extend(predictions.cpu().numpy())
-                    all_prediction_pos_scores.extend(outputs['logits'][:1].cpu().numpy())
+                    all_prediction_pos_scores.extend(outputs['logits'][:, 1].cpu().numpy())
                     all_labels.extend(batch['labels'].cpu().numpy())
                 
                 # 累计损失
