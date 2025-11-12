@@ -67,7 +67,7 @@ def compute_gauc(all_labels: np.ndarray,
         return 0.0
     
     gauc = total_gauc / total_weight
-    logger.info(f"GAUC计算完成，有效query数: {valid_queries}, 总query数: {len(query_to_indices)}")
+    logger.info(f"GAUC计算完成，GAUC: {gauc}，有效query数: {valid_queries}, 总query数: {len(query_to_indices)}")
     
     return gauc
 
