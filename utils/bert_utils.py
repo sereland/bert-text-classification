@@ -628,7 +628,7 @@ class ModelTrainer:
                     outputs = self.model(**model_batch)
                     logger.info(f'outputs["logits"] shape: {outputs["logits"].shape}')
                     logger.info(f'self.criterion: {self.criterion}')
-                    loss = self.criterion(outputs['logits'].squeeze(), batch['labels'].float())
+                    loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
                 
                 # 反向传播
                 loss.backward()
