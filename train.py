@@ -399,8 +399,8 @@ def main():
     # 更新配置
     config = get_config(args.task_type, args.model_type)
     logger.info(f'[debug] Initial config: {config.get_config_dict()}')
-    # 更新配置 - 使用类方法而不是实例方法
-    config.__class__.update_config({
+    # 更新配置
+    config.update_config({
         'MODEL_NAME': args.model_name,
         'TRAIN_FILE': args.train_file,
         'TEST_FILE': args.test_file,
