@@ -626,6 +626,8 @@ class ModelTrainer:
                     # 移除query字段，因为模型不接受这个参数
                     model_batch = {k: v for k, v in batch.items() if k != 'query'}
                     outputs = self.model(**model_batch)
+                    logger.info(f'outputs["logits"] shape: {outputs["logits"].shape}')
+                    logger.info(f'self.criterion: {self.criterion}')
                     loss = self.criterion(outputs['logits'].squeeze(), batch['labels'])
                 
                 # 反向传播
