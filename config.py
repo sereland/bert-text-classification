@@ -165,7 +165,7 @@ def get_config(task_type: str = "classification", model_type: str = "bert") -> C
     #     raise ValueError(f"不支持的模型类型: {model_type}")
     
     # return config_class()
-    return base_config
+    return base_config()
 
 if __name__ == "__main__":
     # 测试配置
