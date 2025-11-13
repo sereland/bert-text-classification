@@ -46,7 +46,7 @@ def compute_gauc(all_labels: np.ndarray,
         # 检查该query是否有正负样本
         unique_labels = np.unique(query_labels)
         if len(unique_labels) < 2:
-            logger.warning(f"Query {q} 只有一个类别，跳过AUC计算")
+            # logger.warning(f"Query {q} 只有一个类别，跳过AUC计算")
             continue
         
         try:
