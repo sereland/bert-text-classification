@@ -71,19 +71,19 @@ def compute_gauc(all_labels: np.ndarray,
     
     return gauc
 
-def compute_ndcg_k(labels: np.ndarray, 
-                  scores: np.ndarray, 
+def compute_ndcg_k(labels: np.ndarray,
+                  scores: np.ndarray,
                   k: int = 10) -> float:
     """
     计算NDCG@K
     
     Args:
         labels: 真实相关性分数 [n_samples]
-        scores: 预测分数 [n_samples] 
+        scores: 预测分数 [n_samples]
         k: 截断位置
         
     Returns:
-        NDCG@K值
+        NDCG@K值，如果样本数<2则返回None
     """
     if len(labels) != len(scores):
         raise ValueError("labels和scores长度必须相同")
@@ -94,13 +94,18 @@ def compute_ndcg_k(labels: np.ndarray,
     # 确保k不超过样本数
     k = min(k, len(labels))
     
+    # sklearn的ndcg_score要求至少有2个文档
+    if len(labels) < 2:
+        # 返回None表示跳过此query的计算
+        return None
+    
     try:
         # sklearn的ndcg_score需要2D数组
         ndcg = ndcg_score([labels], [scores], k=k)
         return ndcg
     except Exception as e:
         logger.warning(f"NDCG@{k}计算失败: {e}")
-        return 0.0
+        return None
 
 def compute_group_ndcg_k(all_labels: List[np.ndarray],
                        all_scores: List[np.ndarray],
@@ -123,6 +128,7 @@ def compute_group_ndcg_k(all_labels: List[np.ndarray],
     
     total_ndcg = 0.0
     valid_queries = 0
+    skipped_queries = 0
     
     for i, q in enumerate(all_queries):
         labels = all_labels[i]
@@ -130,10 +136,14 @@ def compute_group_ndcg_k(all_labels: List[np.ndarray],
         
         try:
             ndcg = compute_ndcg_k(labels, scores, k)
-            total_ndcg += ndcg
-            valid_queries += 1
+            if ndcg is not None:
+                total_ndcg += ndcg
+                valid_queries += 1
+            else:
+                skipped_queries += 1
         except Exception as e:
             logger.warning(f"Query {q} NDCG@{k}计算失败: {e}")
+            skipped_queries += 1
             continue
     
     if valid_queries == 0:
@@ -141,7 +151,7 @@ def compute_group_ndcg_k(all_labels: List[np.ndarray],
         return 0.0
     
     avg_ndcg = total_ndcg / valid_queries
-    logger.info(f"NDCG@{k}计算完成，有效query数: {valid_queries}, 总query数: {len(all_queries)}")
+    logger.info(f"NDCG@{k}计算完成，有效query数: {valid_queries}, 跳过query数: {skipped_queries}, 总query数: {len(all_queries)}")
     
     return avg_ndcg
 
