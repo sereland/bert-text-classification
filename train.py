@@ -270,26 +270,31 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             
             predictions.append(pred)
             probabilities.append(probs)
-    # 回归或pairwise任务：逐个预测并显示进度
-    for i, text in enumerate(tqdm(texts_to_predict, desc="预测进度", unit="条")):
-        # 分词和编码
-        inputs = tokenizer(
-            text,
-            truncation=True,
-            padding='max_length',
-            max_length=config.MAX_LENGTH,
-            return_tensors='pt'
-        )
+    else:  # 回归或pairwise任务：逐个预测并显示进度
+        for i, text in enumerate(tqdm(texts_to_predict, desc="预测进度", unit="条")):
+            # 分词和编码
+            inputs = tokenizer(
+                text,
+                truncation=True,
+                padding='max_length',
+                max_length=config.MAX_LENGTH,
+                return_tensors='pt'
+            )
 
-        # 将数据移动到设备
-        inputs = {k: v.to(config.DEVICE) for k, v in inputs.items()}
+            # 将数据移动到设备
+            inputs = {k: v.to(config.DEVICE) for k, v in inputs.items()}
 
-        # 预测
-        with torch.no_grad():
-            outputs = model(**inputs)
-            pred = outputs['logits'].squeeze().item()
+            # 预测
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits = outputs['logits']
+                # 安全地处理不同维度的logits
+                if logits.dim() == 0:
+                    pred = logits.item()
+                else:
+                    pred = logits.squeeze().item()
 
-        predictions.append(pred)
+            predictions.append(pred)
     
     logger.info("预测完成")
     
@@ -306,7 +311,7 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
                 result_df['prediction'] = predictions
                 
                 # 添加概率列
-                for i in range(probabilities[0].shape[0]):
+                for i in range(len(probabilities[0])):
                     result_df[f'probability_class_{i}'] = [prob[i] for prob in probabilities]
             else:
                 # 只有文本和预测结果
@@ -316,9 +321,9 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
                 })
                 
                 # 添加概率列
-                for i in range(probabilities[0].shape[0]):
+                # 添加概率列
+                for i in range(len(probabilities[0])):
                     result_df[f'probability_class_{i}'] = [prob[i] for prob in probabilities]
-            
             result_df.to_csv(output_file, index=False)
             logger.info(f"预测结果已保存到 {output_file}")
         
