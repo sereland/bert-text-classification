@@ -381,12 +381,12 @@ class DataProcessor:
         labels = df[self.label_column].tolist()
         
         # 如果是分类任务，对标签进行编码
-        if not self.is_regression:
-            if self.label_encoder is None:
-                self.label_encoder = LabelEncoder()
-                labels = self.label_encoder.fit_transform(labels)
-            else:
-                labels = self.label_encoder.transform(labels)
+        # if not self.is_regression:
+        #     if self.label_encoder is None:
+        #         self.label_encoder = LabelEncoder()
+        #         labels = self.label_encoder.fit_transform(labels)
+        #     else:
+        #         labels = self.label_encoder.transform(labels)
         
         logger.info(f"预处理完成，文本数量: {len(texts)}, 标签数量: {len(labels)}, query数量: {len(queries)}")
         return texts, labels, queries

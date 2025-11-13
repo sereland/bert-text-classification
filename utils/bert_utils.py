@@ -474,7 +474,7 @@ class ModelTrainer:
                     np.array(all_predictions),
                     np.array(all_score_diffs),
                     all_queries,
-                    k_values=[5, 10]
+                    k_values=[3, 5]
                 )
             else:
                 # 没有query信息，使用基础分类指标
