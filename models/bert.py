@@ -84,8 +84,8 @@ class BertClassifier(nn.Module):
         
         # 计算损失
         loss = None
-        if labels is not None:
-            loss = self.criterion(logits, labels)
+        # if labels is not None:
+        #     loss = self.criterion(logits, labels)
         
         return {
             'loss': loss,
