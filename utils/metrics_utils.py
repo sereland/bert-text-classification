@@ -101,7 +101,9 @@ def compute_ndcg_k(labels: np.ndarray,
     
     try:
         # sklearn的ndcg_score需要2D数组
+        logger.info(f'Computing NDCG@{k} for labels: {labels}, scores: {scores}')
         ndcg = ndcg_score([labels], [scores], k=k)
+        logger.info(f'Computed NDCG@{k}: {ndcg}')
         return ndcg
     except Exception as e:
         logger.warning(f"NDCG@{k}计算失败: {e}")

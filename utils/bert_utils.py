@@ -490,7 +490,7 @@ class ModelTrainer:
                     np.array(all_predictions),
                     np.array(all_score_diffs),
                     all_queries,
-                    k_values=[5, 10]
+                    k_values=[3, 5]
                 )
                 logger.info(f"rank指标: {metrics}")
                 if self.config.NUM_LABELS == 2: # 分类任务输出01
