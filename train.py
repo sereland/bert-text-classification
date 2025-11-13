@@ -53,7 +53,7 @@ def setup_args():
                        help="训练轮数")
     parser.add_argument("--max_length", type=int, default=256,
                        help="文本最大长度")
-    parser.add_argument("--num_labels", type=int, default=2,
+    parser.add_argument("--num_labels", type=int, default=1,
                        help="分类任务类别数")
     parser.add_argument("--loss_function", type=str, default="auto",
                        choices=["auto", "CrossEntropyLoss", "MSELoss", "L1Loss", "SmoothL1Loss", "BCEWithLogitsLoss", "KLDivLoss", "RankNetLoss", "MarginRankingLoss", "BPRLoss"],
@@ -182,11 +182,8 @@ def evaluate_model(config, model, test_dataloader):
                 # 分类或回归任务
                 outputs = model(**batch)
                 
-                if config.TASK_TYPE == "classification":
-                    predictions = torch.argmax(outputs['logits'], dim=-1)
-                else:  # regression
-                    predictions = outputs['logits'].squeeze()
-                
+                predictions = outputs['logits'].squeeze()
+                    
                 all_predictions.extend(predictions.cpu().numpy())
                 all_labels.extend(batch['labels'].cpu().numpy())
     

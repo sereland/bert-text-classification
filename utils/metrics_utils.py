@@ -153,7 +153,8 @@ class RankingMetricsCalculator:
                                 all_predictions: np.ndarray,
                                 all_score_diffs: np.ndarray = None,
                                 all_queries: List[str] = None,
-                                k_values: List[int] = [5, 10]) -> Dict[str, float]:
+                                k_values: List[int] = [5, 10],
+                                label_01: bool = False) -> Dict[str, float]:
         """
         计算pairwise任务的指标
         
@@ -168,29 +169,29 @@ class RankingMetricsCalculator:
             指标字典
         """
         metrics = {}
-        
-        # 基础分类指标
-        from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-        accuracy = accuracy_score(all_labels, all_predictions)
-        precision, recall, f1, _ = precision_recall_fscore_support(
-            all_labels, all_predictions, average='weighted'
-        )
-        
-        metrics.update({
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'f1': f1
-        })
-        
-        # 计算GAUC（如果有query信息和得分差）
-        if all_queries is not None and all_score_diffs is not None:
-            try:
-                gauc = compute_gauc(all_labels, all_score_diffs, all_queries)
-                metrics['gauc'] = gauc
-            except Exception as e:
-                logger.warning(f"GAUC计算失败: {e}")
-                metrics['gauc'] = 0.0
+        if label_01:        
+            # 基础分类指标
+            from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+            accuracy = accuracy_score(all_labels, all_predictions)
+            precision, recall, f1, _ = precision_recall_fscore_support(
+                all_labels, all_predictions, average='weighted'
+            )
+            
+            metrics.update({
+                'accuracy': accuracy,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1
+            })
+            
+            # 计算GAUC（如果有query信息和得分差）
+            if all_queries is not None and all_score_diffs is not None:
+                try:
+                    gauc = compute_gauc(all_labels, all_score_diffs, all_queries)
+                    metrics['gauc'] = gauc
+                except Exception as e:
+                    logger.warning(f"GAUC计算失败: {e}")
+                    metrics['gauc'] = 0.0
         
         # 计算NDCG@K（如果有query信息）
         if all_queries is not None:

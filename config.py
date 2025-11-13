@@ -89,7 +89,8 @@ class Config:
 class ClassificationConfig(Config):
     """分类任务配置"""
     TASK_TYPE = "classification"
-    LOSS_FUNCTION = "CrossEntropyLoss"
+    LOSS_FUNCTION = "BCEWithLogitsLoss"
+    NUM_LABELS = 1
     
 class RegressionConfig(Config):
     """回归任务配置"""
