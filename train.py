@@ -47,6 +47,10 @@ def setup_args():
     # 训练参数
     parser.add_argument("--batch_size", type=int, default=32,
                        help="批次大小")
+    parser.add_argument("--valid_batch_size", type=int, default=256,
+                       help="验证批次大小")
+    parser.add_argument("--test_batch_size", type=int, default=256,
+                       help="验证批次大小")
     parser.add_argument("--learning_rate", type=float, default=2e-5,
                        help="学习率")
     parser.add_argument("--num_epochs", type=int, default=3,
@@ -126,7 +130,7 @@ def set_seed(seed: int):
 def create_model(config):
     """创建模型"""
     if config.MODEL_TYPE == "bert":
-        logger.info(f'[debug] Creating BERT model with config: {config.get_config_dict()}')
+        # logger.info(f'[debug] Creating BERT model with config: {config.get_config_dict()}')
         return create_bert_model(config)
     elif config.MODEL_TYPE == "bert_cnn":
         return create_bert_cnn_model(config)
@@ -398,7 +402,7 @@ def main():
     
     # 更新配置
     config = get_config(args.task_type, args.model_type)
-    logger.info(f'[debug] Initial config: {config.get_config_dict()}')
+    # logger.info(f'[debug] Initial config: {config.get_config_dict()}')
     # 更新配置
     config.update_config({
         'MODEL_NAME': args.model_name,
@@ -407,6 +411,8 @@ def main():
         'TEXT_COLUMNS': args.text_columns.split(','),
         'LABEL_COLUMN': args.label_column,
         'BATCH_SIZE': args.batch_size,
+        'VALID_BATCH_SIZE': args.valid_batch_size,
+        'TEST_BATCH_SIZE': args.test_batch_size,
         'LEARNING_RATE': args.learning_rate,
         'NUM_EPOCHS': args.num_epochs,
         'MAX_LENGTH': args.max_length,
@@ -422,7 +428,7 @@ def main():
         'LOSS_FUNCTION': args.loss_function,
         'USE_VALIDATION_SET': args.use_validation_set
     })
-    logger.info(f'[debug] Updated config: {config.get_config_dict()}')
+    # logger.info(f'[debug] Updated config: {config.get_config_dict()}')
     
     # 创建保存目录
     os.makedirs(config.SAVE_DIR, exist_ok=True)
@@ -454,7 +460,7 @@ def main():
         model = load_model(args.model_path, create_model, config)
     else:
         logger.info("创建新模型...")
-        logger.info(f'[debug] Config before create model: {config.get_config_dict()}')
+        # logger.info(f'[debug] Config before create model: {config.get_config_dict()}')
         model = create_model(config)
     
     # 训练模型

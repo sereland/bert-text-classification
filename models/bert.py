@@ -19,7 +19,7 @@ class BertClassifier(nn.Module):
         """
         super(BertClassifier, self).__init__()
         self.config = config
-        logger.info(f"[debug] BertClassifier config={config.get_config_dict()}")
+        # logger.info(f"[debug] BertClassifier config={config.get_config_dict()}")
         
         # 加载预训练BERT模型
         self.bert = AutoModel.from_pretrained(config.MODEL_NAME)
@@ -38,8 +38,8 @@ class BertClassifier(nn.Module):
         
         # 损失函数
         self.criterion = self._get_criterion()
-        logger.info(f'[debug] config={self.config.get_config_dict()}')
-        logger.info(f'[debug] config.NUM_LABELS={self.config.NUM_LABELS}')
+        # logger.info(f'[debug] config={self.config.get_config_dict()}')
+        # logger.info(f'[debug] config.NUM_LABELS={self.config.NUM_LABELS}')
         
         logger.info(f"BERT分类器初始化完成 - 模型: {self.config.MODEL_NAME}, 类别数: {self.config.NUM_LABELS}")
     
@@ -287,7 +287,7 @@ def create_bert_model(config: Any) -> nn.Module:
         BERT模型
     """
     if config.TASK_TYPE == "classification":
-        logger.info("[debug] before create BertClassifier,config={config.get_config_dict()}")
+        # logger.info("[debug] before create BertClassifier,config={config.get_config_dict()}")
         return BertClassifier(config)
     elif config.TASK_TYPE == "regression":
         return BertRegressor(config)

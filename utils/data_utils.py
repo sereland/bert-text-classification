@@ -591,7 +591,7 @@ def create_data_loaders(config,
             
             val_dataloader = processor.create_dataloader(
                 val_texts, val_labels, tokenizer, val_queries,
-                batch_size=config.BATCH_SIZE,
+                batch_size=config.VALID_BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=False
             )
@@ -648,7 +648,7 @@ def create_test_dataloader(config,
         # 创建测试数据加载器
         test_dataloader = processor.create_dataloader(
             texts1, texts2, labels, queries, tokenizer,
-            batch_size=config.BATCH_SIZE,
+            batch_size=config.TEST_BATCH_SIZE,
             max_length=config.MAX_LENGTH,
             shuffle=False
         )

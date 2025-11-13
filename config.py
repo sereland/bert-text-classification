@@ -22,6 +22,8 @@ class Config:
             # 训练配置
             'TASK_TYPE': "classification",  # 可选: classification, regression, pairwise
             'BATCH_SIZE': 32,
+            'VALID_BATCH_SIZE': 256,
+            'TEST_BATCH_SIZE': 256,
             'LEARNING_RATE': 2e-5,
             'NUM_EPOCHS': 3,
             'WEIGHT_DECAY': 0.01,
