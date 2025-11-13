@@ -195,33 +195,36 @@ class RankingMetricsCalculator:
         
         # 计算NDCG@K（如果有query信息）
         logger.info(f'k_values for NDCG: {k_values}')
-        if all_queries is not None:
+        if all_queries is not None and all_score_diffs is not None:
             for k in k_values:
                 logger.info(f"计算NDCG@{k}...")
                 try:
-                    # 对于pairwise任务，我们需要重新组织数据来计算NDCG
-                    # 这里简化处理，使用得分差作为排序分数
-                    if all_score_diffs is not None:
-                        # 按query分组计算NDCG
-                        query_to_indices = {}
-                        for i, q in enumerate(all_queries):
-                            if q not in query_to_indices:
-                                query_to_indices[q] = []
-                            query_to_indices[q].append(i)
+                    # 对于pairwise任务，使用得分差作为排序分数
+                    # 按query分组计算NDCG
+                    query_to_indices = {}
+                    for i, q in enumerate(all_queries):
+                        if q not in query_to_indices:
+                            query_to_indices[q] = []
+                        query_to_indices[q].append(i)
+                    
+                    # 准备compute_group_ndcg_k需要的参数格式
+                    group_labels = []
+                    group_scores = []
+                    group_queries = []
+                    
+                    for q, indices in query_to_indices.items():
+                        mask = np.array(indices)
+                        query_labels = all_labels[mask]
+                        query_scores = all_score_diffs[mask]
                         
-                        ndcg_values = []
-                        for q, indices in query_to_indices.items():
-                            mask = np.array(indices)
-                            query_labels = all_labels[mask]
-                            query_scores = all_score_diffs[mask]
-                            
-                            if len(query_labels) > 0:
-                                ndcg = compute_ndcg_k(query_labels, query_scores, k)
-                                ndcg_values.append(ndcg)
-                        
-                        if ndcg_values:
-                            avg_ndcg = np.mean(ndcg_values)
-                            metrics[f'ndcg@{k}'] = avg_ndcg
+                        if len(query_labels) > 0:
+                            group_labels.append(query_labels)
+                            group_scores.append(query_scores)
+                            group_queries.append(q)
+                    
+                    # 使用compute_group_ndcg_k计算
+                    avg_ndcg = compute_group_ndcg_k(group_labels, group_scores, group_queries, k)
+                    metrics[f'ndcg@{k}'] = avg_ndcg
                         
                 except Exception as e:
                     logger.warning(f"NDCG@{k}计算失败: {e}")
@@ -282,19 +285,24 @@ class RankingMetricsCalculator:
                             query_to_indices[q] = []
                         query_to_indices[q].append(i)
                     
-                    ndcg_values = []
+                    # 准备compute_group_ndcg_k需要的参数格式
+                    group_labels = []
+                    group_scores = []
+                    group_queries = []
+                    
                     for q, indices in query_to_indices.items():
                         mask = np.array(indices)
                         query_labels = all_labels[mask]
                         query_scores = all_scores[mask]
                         
                         if len(query_labels) > 0:
-                            ndcg = compute_ndcg_k(query_labels, query_scores, k)
-                            ndcg_values.append(ndcg)
+                            group_labels.append(query_labels)
+                            group_scores.append(query_scores)
+                            group_queries.append(q)
                     
-                    if ndcg_values:
-                        avg_ndcg = np.mean(ndcg_values)
-                        metrics[f'ndcg@{k}'] = avg_ndcg
+                    # 使用compute_group_ndcg_k计算
+                    avg_ndcg = compute_group_ndcg_k(group_labels, group_scores, group_queries, k)
+                    metrics[f'ndcg@{k}'] = avg_ndcg
                     
                 except Exception as e:
                     logger.warning(f"NDCG@{k}计算失败: {e}")
