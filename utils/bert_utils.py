@@ -194,7 +194,7 @@ class MetricsCalculator:
         precision, recall, f1, _ = precision_recall_fscore_support(
             y_true, y_pred, average='weighted'
         )
-        print(classification_report(y_true, y_pred))
+        print(classification_report(y_true, y_pred, digits=4))
         
         return {
             'accuracy': accuracy,

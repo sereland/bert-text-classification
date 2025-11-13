@@ -51,7 +51,7 @@ def setup_args():
                        help="学习率")
     parser.add_argument("--num_epochs", type=int, default=3,
                        help="训练轮数")
-    parser.add_argument("--max_length", type=int, default=128,
+    parser.add_argument("--max_length", type=int, default=256,
                        help="文本最大长度")
     parser.add_argument("--num_labels", type=int, default=2,
                        help="分类任务类别数")
