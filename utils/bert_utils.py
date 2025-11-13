@@ -433,7 +433,8 @@ class ModelTrainer:
                     # 分类或回归任务
                     model_batch = {k: v for k, v in batch.items() if k != 'query'}
                     outputs = self.model(**model_batch)
-                    loss = self.criterion(outputs['logits'], batch['labels'])
+                    # loss = self.criterion(outputs['logits'], batch['labels'])
+                    loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
                     # 收集预测和标签
                     predictions = outputs['logits'].squeeze()
                     all_predictions.extend(predictions.cpu().numpy())
@@ -626,12 +627,6 @@ class ModelTrainer:
                     # 移除query字段，因为模型不接受这个参数
                     model_batch = {k: v for k, v in batch.items() if k != 'query'}
                     outputs = self.model(**model_batch)
-                    logger.info(f'outputs["logits"] shape: {outputs["logits"].shape}')
-                    logger.info(f'self.criterion: {self.criterion}')
-                    logger.info(f'batch["labels"] shape: {batch["labels"].shape}')
-                    logger.info(f'batch["labels"]: {batch["labels"].detach().cpu().numpy()}')
-                    logger.info(f'outputs["logits"]: {outputs["logits"].detach().cpu().numpy()}')
-                    logger.info(f'outputs["logits"].view_as(batch["labels"]): {outputs["logits"].view_as(batch["labels"])}')
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
                 
                 # 反向传播
