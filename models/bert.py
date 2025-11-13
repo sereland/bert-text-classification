@@ -38,6 +38,8 @@ class BertClassifier(nn.Module):
         
         # 损失函数
         self.criterion = self._get_criterion()
+        logger.info(f'[debug] config={self.config.get_config_dict()}')
+        logger.info(f'[debug] config.NUM_LABELS={self.config.NUM_LABELS}')
         
         logger.info(f"BERT分类器初始化完成 - 模型: {self.config.MODEL_NAME}, 类别数: {self.config.NUM_LABELS}")
     
