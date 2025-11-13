@@ -126,6 +126,7 @@ def set_seed(seed: int):
 def create_model(config):
     """创建模型"""
     if config.MODEL_TYPE == "bert":
+        logger.info(f'[debug] Creating BERT model with config: {config.get_config_dict()}')
         return create_bert_model(config)
     elif config.MODEL_TYPE == "bert_cnn":
         return create_bert_cnn_model(config)
@@ -397,6 +398,7 @@ def main():
     
     # 更新配置
     config = get_config(args.task_type, args.model_type)
+    logger.info(f'[debug] Initial config: {config.get_config_dict()}')
     config.update_config({
         'MODEL_NAME': args.model_name,
         'TRAIN_FILE': args.train_file,
@@ -419,6 +421,7 @@ def main():
         'LOSS_FUNCTION': args.loss_function,
         'USE_VALIDATION_SET': args.use_validation_set
     })
+    logger.info(f'[debug] Updated config: {config.get_config_dict()}')
     
     # 创建保存目录
     os.makedirs(config.SAVE_DIR, exist_ok=True)
@@ -450,6 +453,7 @@ def main():
         model = load_model(args.model_path, create_model, config)
     else:
         logger.info("创建新模型...")
+        logger.info(f'[debug] Config before create model: {config.get_config_dict()}')
         model = create_model(config)
     
     # 训练模型
