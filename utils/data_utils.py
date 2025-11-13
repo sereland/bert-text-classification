@@ -62,6 +62,8 @@ class TextDataset(Dataset):
         # 添加标签
         if self.is_regression:
             encoding['labels'] = torch.tensor(label, dtype=torch.float)
+        elif label != 0 and label != 1:
+            encoding['labels'] = torch.tensor(label, dtype=torch.float)
         else:
             encoding['labels'] = torch.tensor(label, dtype=torch.long)
         
