@@ -378,8 +378,6 @@ class ModelTrainer:
         all_predictions = []
         all_prediction_pos_scores = []
         all_labels = []
-        all_prediction_pos_scores = []  # 用于计算AUC的正类概率
-        all_labels = []
         
         # 用于GAUC和NDCG计算的额外数据
         all_score_diffs = []  # 用于pairwise任务的GAUC计算
@@ -485,8 +483,8 @@ class ModelTrainer:
                 )
                 logger.warning("没有query信息，无法计算GAUC和NDCG，使用基础分类指标")
         elif self.config.TASK_TYPE == "classification":
-            # 分类任务：如果有query信息，计算GAUC
             if all_queries and len(all_queries) == len(all_labels):
+                logger.info("开始计算分类任务下的rank指标")
                 metrics = RankingMetricsCalculator.calculate_pairwise_metrics(
                     np.array(all_labels),
                     np.array(all_predictions),
@@ -664,7 +662,7 @@ class ModelTrainer:
                     self.train_history['learning_rates'].append(current_lr)
                 
                 # 定期保存检查点
-                if hasattr(self.config, 'SAVE_STEPS') and global_step % self.config.SAVE_STEPS == 0:
+                if hasattr(self.config, 'SAVE_STEPS') and (not hasattr(self.config, 'EVAL_STEPS')) and global_step % self.config.SAVE_STEPS == 0:
                     self.save_model(f"checkpoint_step_{global_step}.pt")
                     logger.info(f"检查点已保存: checkpoint_step_{global_step}.pt")
                 

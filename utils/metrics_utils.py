@@ -194,8 +194,10 @@ class RankingMetricsCalculator:
                     metrics['gauc'] = 0.0
         
         # 计算NDCG@K（如果有query信息）
+        logger.info(f'k_values for NDCG: {k_values}')
         if all_queries is not None:
             for k in k_values:
+                logger.info(f"计算NDCG@{k}...")
                 try:
                     # 对于pairwise任务，我们需要重新组织数据来计算NDCG
                     # 这里简化处理，使用得分差作为排序分数
