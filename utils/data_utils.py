@@ -60,12 +60,15 @@ class TextDataset(Dataset):
         encoding = {key: val.squeeze(0) for key, val in encoding.items()}
         
         # 添加标签
-        if self.is_regression:
-            encoding['labels'] = torch.tensor(label, dtype=torch.float)
-        elif label != 0 and label != 1:
-            encoding['labels'] = torch.tensor(label, dtype=torch.float)
-        else:
-            encoding['labels'] = torch.tensor(label, dtype=torch.long)
+        # if self.is_regression:
+        #     encoding['labels'] = torch.tensor(label, dtype=torch.float)
+        # elif label != 0 and label != 1:
+        #     encoding['labels'] = torch.tensor(label, dtype=torch.float)
+        # else:
+        #     encoding['labels'] = torch.tensor(label, dtype=torch.long)
+
+        # 暂时放弃01分类了
+        encoding['labels'] = torch.tensor(label, dtype=torch.float)
         
         # 添加query信息（用于GAUC计算）
         encoding['query'] = query
