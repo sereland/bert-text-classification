@@ -137,35 +137,34 @@ def get_config(task_type: str = "classification", model_type: str = "bert") -> C
     else:
         raise ValueError(f"不支持的任务类型: {task_type}")
     
-    # if model_type == "bert":
-    #     if task_type == "classification":
-    #         config_class_name = "BertClassificationConfig"
-    #     elif task_type == "regression":
-    #         config_class_name = "BertRegressionConfig"
-    #     else:  # pairwise
-    #         config_class_name = "BertPairwiseConfig"
-    #     config_class = type(config_class_name, (base_config, BertConfig), {})
-    # elif model_type == "bert_cnn":
-    #     if task_type == "classification":
-    #         config_class_name = "BertCNNClassificationConfig"
-    #     elif task_type == "regression":
-    #         config_class_name = "BertCNNRegressionConfig"
-    #     else:  # pairwise
-    #         config_class_name = "BertCNNPairwiseConfig"
-    #     config_class = type(config_class_name, (base_config, BertCNNConfig), {})
-    # elif model_type == "bert_xlnet":
-    #     if task_type == "classification":
-    #         config_class_name = "BertXLNetClassificationConfig"
-    #     elif task_type == "regression":
-    #         config_class_name = "BertXLNetRegressionConfig"
-    #     else:  # pairwise
-    #         config_class_name = "BertXLNetPairwiseConfig"
-    #     config_class = type(config_class_name, (base_config, BertXLNetConfig), {})
-    # else:
-    #     raise ValueError(f"不支持的模型类型: {model_type}")
+    if model_type == "bert":
+        if task_type == "classification":
+            config_class_name = "BertClassificationConfig"
+        elif task_type == "regression":
+            config_class_name = "BertRegressionConfig"
+        else:  # pairwise
+            config_class_name = "BertPairwiseConfig"
+        config_class = type(config_class_name, (base_config, BertConfig), {})
+    elif model_type == "bert_cnn":
+        if task_type == "classification":
+            config_class_name = "BertCNNClassificationConfig"
+        elif task_type == "regression":
+            config_class_name = "BertCNNRegressionConfig"
+        else:  # pairwise
+            config_class_name = "BertCNNPairwiseConfig"
+        config_class = type(config_class_name, (base_config, BertCNNConfig), {})
+    elif model_type == "bert_xlnet":
+        if task_type == "classification":
+            config_class_name = "BertXLNetClassificationConfig"
+        elif task_type == "regression":
+            config_class_name = "BertXLNetRegressionConfig"
+        else:  # pairwise
+            config_class_name = "BertXLNetPairwiseConfig"
+        config_class = type(config_class_name, (base_config, BertXLNetConfig), {})
+    else:
+        raise ValueError(f"不支持的模型类型: {model_type}")
     
-    # return config_class()
-    return base_config()
+    return config_class()
 
 if __name__ == "__main__":
     # 测试配置
