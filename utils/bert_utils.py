@@ -626,7 +626,7 @@ class ModelTrainer:
                     # 移除query字段，因为模型不接受这个参数
                     model_batch = {k: v for k, v in batch.items() if k != 'query'}
                     outputs = self.model(**model_batch)
-                    loss = self.criterion(outputs['logits'], batch['labels'])
+                    loss = self.criterion(outputs['logits'].squeeze(), batch['labels'])
                 
                 # 反向传播
                 loss.backward()
