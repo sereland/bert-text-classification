@@ -629,8 +629,8 @@ class ModelTrainer:
                     logger.info(f'outputs["logits"] shape: {outputs["logits"].shape}')
                     logger.info(f'self.criterion: {self.criterion}')
                     logger.info(f'batch["labels"] shape: {batch["labels"].shape}')
-                    logger.info(f'batch["labels"]: {batch["labels"]}')
-                    logger.info(f'outputs["logits"]: {outputs["logits"]}')
+                    logger.info(f'batch["labels"]: {batch["labels"].detach().cpu().numpy()}')
+                    logger.info(f'outputs["logits"]: {outputs["logits"].detach().cpu().numpy()}')
                     logger.info(f'outputs["logits"].view_as(batch["labels"]): {outputs["logits"].view_as(batch["labels"])}')
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
                 
