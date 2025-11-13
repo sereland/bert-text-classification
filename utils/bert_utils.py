@@ -504,7 +504,7 @@ class ModelTrainer:
                 try:
                     gauc = compute_gauc(
                         np.array(all_labels),
-                        np.array(all_score_diffs),
+                        np.array(all_prediction_pos_scores),
                         all_queries
                     )
                     base_metrics['gauc'] = gauc
