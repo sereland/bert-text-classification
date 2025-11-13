@@ -502,6 +502,7 @@ class ModelTrainer:
                 auc = MetricsCalculator.calculate_auc(
                     np.array(all_labels), np.array(all_prediction_pos_scores)
                 )
+                base_metrics['auc'] = auc
                 
                 # 计算GAUC
                 try:
