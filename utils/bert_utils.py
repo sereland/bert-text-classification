@@ -499,6 +499,9 @@ class ModelTrainer:
                 base_metrics = MetricsCalculator.calculate_classification_metrics(
                     np.array(all_labels), np.array(all_predictions)
                 )
+                auc = MetricsCalculator.calculate_auc(
+                    np.array(all_labels), np.array(all_prediction_pos_scores)
+                )
                 
                 # 计算GAUC
                 try:
@@ -513,13 +516,10 @@ class ModelTrainer:
                     base_metrics['gauc'] = 0.0
                 
                 metrics = base_metrics
-
-            metrics = MetricsCalculator.calculate_classification_metrics(
-                np.array(all_labels), np.array(all_predictions)
-            )
-            auc = MetricsCalculator.calculate_auc(
-                np.array(all_labels), np.array(all_prediction_pos_scores)
-            )
+            else:
+                metrics = MetricsCalculator.calculate_classification_metrics(
+                    np.array(all_labels), np.array(all_predictions)
+                )
         else:  # regression
             # 回归任务：如果有query信息，计算GAUC和NDCG
             if all_queries and len(all_queries) == len(all_labels):
