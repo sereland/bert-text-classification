@@ -431,15 +431,12 @@ class ModelTrainer:
                         
                 else:
                     # 分类或回归任务
-                    # 分类或回归任务
-                    # 移除query字段，因为模型不接受这个参数
                     model_batch = {k: v for k, v in batch.items() if k != 'query'}
                     outputs = self.model(**model_batch)
-                    loss = outputs['loss'] if 'loss' in outputs else self.criterion(outputs['logits'], batch['labels'])
+                    loss = self.criterion(outputs['logits'], batch['labels'])
                     # 收集预测和标签
                     if self.config.TASK_TYPE == "classification":
                         predictions = torch.argmax(outputs['logits'], dim=-1)
-                        # 收集正类概率用于AUC计算
                         pos_scores = torch.softmax(outputs['logits'], dim=-1)[:, 1].cpu().numpy()
                         all_prediction_pos_scores.extend(pos_scores)
                     else:  # regression
@@ -530,6 +527,7 @@ class ModelTrainer:
                     all_queries,
                     k_values=[5, 10]
                 )
+                logger.info(f"rank指标: {metrics}")
             else:
                 # 没有query信息，使用基础回归指标
                 metrics = MetricsCalculator.calculate_regression_metrics(
