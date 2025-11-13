@@ -612,8 +612,8 @@ def create_data_loaders(config,
             logger.info("不使用独立验证集：将直接使用测试集作为验证集")
         
         # 更新配置中的类别数
-        if config.TASK_TYPE == "classification":
-            config.NUM_LABELS = processor.get_num_classes()
+        # if config.TASK_TYPE == "classification":
+        #     config.NUM_LABELS = processor.get_num_classes()
     
     return train_dataloader, val_dataloader
 
