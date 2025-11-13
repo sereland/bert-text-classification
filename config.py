@@ -13,7 +13,7 @@ class Config:
     MODEL_TYPE = "bert"  # 可选: bert, bert_cnn, bert_xlnet
     MODEL_NAME = "pretrained/google-bert/bert-base-chinese"  # 预训练模型名称
     MAX_LENGTH = 128  # 文本最大长度
-    NUM_LABELS = 2  # 默认分类任务类别数，回归任务设为1
+    NUM_LABELS = 1  # 默认分类任务类别数，回归任务设为1
     
     # 训练配置
     TASK_TYPE = "classification"  # 可选: classification, regression, pairwise
