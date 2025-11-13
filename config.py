@@ -13,7 +13,7 @@ class Config:
     MODEL_TYPE = "bert"  # 可选: bert, bert_cnn, bert_xlnet
     MODEL_NAME = "pretrained/google-bert/bert-base-chinese"  # 预训练模型名称
     MAX_LENGTH = 128  # 文本最大长度
-    NUM_LABELS = 2  # 分类任务类别数，回归任务设为1
+    NUM_LABELS = 2  # 默认分类任务类别数，回归任务设为1
     
     # 训练配置
     TASK_TYPE = "classification"  # 可选: classification, regression, pairwise
@@ -90,13 +90,13 @@ class ClassificationConfig(Config):
     """分类任务配置"""
     TASK_TYPE = "classification"
     LOSS_FUNCTION = "BCEWithLogitsLoss"
-    NUM_LABELS = 1
+    NUM_LABELS = 1  # 分类任务默认为2类
     
 class RegressionConfig(Config):
     """回归任务配置"""
     TASK_TYPE = "regression"
     LOSS_FUNCTION = "MSELoss"
-    NUM_LABELS = 1
+    NUM_LABELS = 1  # 回归任务输出1个值
 
 class PairwiseConfig(Config):
     """Pairwise任务配置"""
