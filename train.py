@@ -300,6 +300,8 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             predictions.append(pred)
     
     logger.info("预测完成")
+    logger.info(f"总共预测了 {len(predictions)} 条数据")
+    logger.info(f"预测结果示例: {predictions[:5]}")
     
     # 如果是分类任务，也可以获取概率
     if config.TASK_TYPE == "classification":
@@ -316,7 +318,8 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
                 # 添加概率列
                 # for i in range(len(probabilities[0])):
                 for i in range(1):  # 只有一个概率值(logits)
-                    result_df[f'probability_class_{i}'] = [prob[i] for prob in probabilities]
+                    # result_df[f'probability_class_{i}'] = [prob[i] for prob in probabilities]
+                    result_df[f'probability_class_{1}'] = [prob for prob in probabilities]
             else:
                 # 只有文本和预测结果
                 result_df = pd.DataFrame({
