@@ -269,7 +269,8 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
                 outputs = model(**inputs)
                 pred = torch.argmax(outputs['logits'], dim=-1).item()  # 01标签
                 # probs = torch.softmax(outputs['logits'], dim=-1).cpu().numpy()[0] # 各类别概率
-                probs = outputs['logits'].cpu().numpy().item()  # 直接输出logits作为概率
+                # probs = outputs['logits'].cpu().numpy().item()  # 直接输出logits作为概率
+                probs = torch.sigmoid(outputs['logits']).cpu().numpy().item() # 转为概率
             
             predictions.append(pred)
             probabilities.append(probs)
