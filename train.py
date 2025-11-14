@@ -314,7 +314,8 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
                 result_df['prediction'] = predictions
                 
                 # 添加概率列
-                for i in range(len(probabilities[0])):
+                # for i in range(len(probabilities[0])):
+                for i in range(1):  # 只有一个概率值(logits)
                     result_df[f'probability_class_{i}'] = [prob[i] for prob in probabilities]
             else:
                 # 只有文本和预测结果
