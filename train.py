@@ -372,7 +372,7 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
                         'prediction': predictions
                     })
 
-                result_df.to_csv(output_file, index=False)
+                result_df.to_csv(output_file, index=False, sep='\t')
                 logger.info(f"预测结果已保存到 {output_file}")
 
             # 计算离线指标（如果输入文件包含标签）
