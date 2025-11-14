@@ -267,8 +267,9 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             # 预测
             with torch.no_grad():
                 outputs = model(**inputs)
-                pred = torch.argmax(outputs['logits'], dim=-1).item()
-                probs = torch.softmax(outputs['logits'], dim=-1).cpu().numpy()[0]
+                pred = torch.argmax(outputs['logits'], dim=-1).item()  # 01标签
+                # probs = torch.softmax(outputs['logits'], dim=-1).cpu().numpy()[0] # 各类别概率
+                probs = outputs['logits'].squeeze().cpu().numpy()[0]  # 直接输出logits作为概率
             
             predictions.append(pred)
             probabilities.append(probs)
