@@ -340,19 +340,19 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             true_labels = df[config.LABEL_COLUMN].tolist()
             
             # 如果是分类任务，需要对标签进行编码
-            if config.TASK_TYPE == "classification and config.NUM_LABELS > 1":
+            if config.TASK_TYPE == "classification" and config.NUM_LABELS > 1:
                 from sklearn.preprocessing import LabelEncoder
                 le = LabelEncoder()
                 true_labels = le.fit_transform(true_labels)
             
-            metrics = MetricsCalculator.calculate_classification_metrics(true_labels, predictions)
-            logger.info(f"离线指标: {metrics}")
-            
-            # 保存离线指标
-            metrics_file = output_file.replace('.csv', '_metrics.json')
-            with open(metrics_file, 'w', encoding='utf-8') as f:
-                json.dump(metrics, f, ensure_ascii=False, indent=2)
-            logger.info(f"离线指标已保存到: {metrics_file}")
+                metrics = MetricsCalculator.calculate_classification_metrics(true_labels, predictions)
+                logger.info(f"离线指标: {metrics}")
+                
+                # 保存离线指标
+                metrics_file = output_file.replace('.csv', '_metrics.json')
+                with open(metrics_file, 'w', encoding='utf-8') as f:
+                    json.dump(metrics, f, ensure_ascii=False, indent=2)
+                logger.info(f"离线指标已保存到: {metrics_file}")
         
         else:
             # 回归或pairwise任务
