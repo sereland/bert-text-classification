@@ -340,7 +340,7 @@ def predict_texts(config, model, texts=None, input_file=None, output_file=None):
             true_labels = df[config.LABEL_COLUMN].tolist()
             
             # 如果是分类任务，需要对标签进行编码
-            if config.TASK_TYPE == "classification":
+            if config.TASK_TYPE == "classification and config.NUM_LABELS > 1":
                 from sklearn.preprocessing import LabelEncoder
                 le = LabelEncoder()
                 true_labels = le.fit_transform(true_labels)
