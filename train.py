@@ -130,7 +130,7 @@ def set_seed(seed: int):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-def create_model(config) -> nn.Module:
+def create_model(config) -> 'nn.Module':
     """创建模型"""
     if config.MODEL_TYPE == "bert":
         # logger.info(f'[debug] Creating BERT model with config: {config.get_config_dict()}')
