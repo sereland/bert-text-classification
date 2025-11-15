@@ -596,7 +596,7 @@ def create_data_loaders(config,
         
         # 预处理数据
         texts, labels, queries, weights = processor.preprocess_data(train_df)
-        if not config.TRAIN_WITH_WEIGHTS:
+        if not config.TRAIN_WITH_WEIGHT:
             logger.info('不使用权重训练，权重全设置为1')
             weights = [1.0] * len(labels)
         else:
