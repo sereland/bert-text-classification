@@ -111,6 +111,9 @@ def setup_args():
     parser.add_argument("--predict_output_file", type=str, default="predictions.csv",
                        help="预测输出文件路径")
     
+    parser.add_argument("--train_with_weight", action="store_true",
+                       help="训练加权重")
+    
     return parser.parse_args()
 
 def set_seed(seed: int):
@@ -127,7 +130,7 @@ def set_seed(seed: int):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-def create_model(config):
+def create_model(config) -> nn.Module:
     """创建模型"""
     if config.MODEL_TYPE == "bert":
         # logger.info(f'[debug] Creating BERT model with config: {config.get_config_dict()}')
@@ -432,7 +435,8 @@ def main():
         'PATIENCE': args.patience,
         'BEST_MODEL_CRITERION': args.best_model_criterion,
         'LOSS_FUNCTION': args.loss_function,
-        'USE_VALIDATION_SET': args.use_validation_set
+        'USE_VALIDATION_SET': args.use_validation_set,
+        'TRAIN_WITH_WEIGHT': args.train_with_weight
     })
     # logger.info(f'[debug] Updated config: {config.get_config_dict()}')
     

@@ -429,7 +429,7 @@ class ModelTrainer:
                         
                 else:
                     # 分类或回归任务
-                    model_batch = {k: v for k, v in batch.items() if k != 'query'}
+                    model_batch = {k: v for k, v in batch.items() if k != 'query' and k != 'weight'}
                     outputs = self.model(**model_batch)
                     # loss = self.criterion(outputs['logits'], batch['labels'])
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
@@ -623,9 +623,11 @@ class ModelTrainer:
                 else:
                     # 分类或回归任务
                     # 移除query字段，因为模型不接受这个参数
-                    model_batch = {k: v for k, v in batch.items() if k != 'query'}
+                    weights = batch[ self.config.WEIGHT_COLUMN]
+                    model_batch = {k: v for k, v in batch.items() if k != 'query' and k != 'weight'}
                     outputs = self.model(**model_batch)
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
+                    loss = (loss * weights).mean()
                 
                 # 反向传播
                 loss.backward()

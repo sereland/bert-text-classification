@@ -60,6 +60,7 @@ class Config:
             # 数据处理配置
             'TEXT_COLUMNS': ["query", "text"],  # 文本列名
             'TEXT_COLUMNS_PAIRWISE': ["query", "text1", "text2"],  # pairwise任务文本列名
+            'WEIGHT_COLUMN': "weight",  # 样本权重列名
             'LABEL_COLUMN': "label",  # 标签列名
             
             # BERT-CNN 特定配置
@@ -69,6 +70,8 @@ class Config:
             
             # BERT-XLNet 特定配置
             'XLNET_MEM_LEN': 512,  # XLNet记忆长度
+
+            'TRAIN_WITH_WEIGHT': False,  # 是否在训练时使用样本权重
         }
         
         # 如果提供了基础配置，合并它

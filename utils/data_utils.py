@@ -20,7 +20,8 @@ class TextDataset(Dataset):
                  tokenizer: AutoTokenizer,
                  max_length: int = 256,
                  is_regression: bool = False,
-                 queries: List[str] = None):
+                 queries: List[str] = None,
+                 weights: List[float] = None):
         """
         初始化数据集
         
@@ -35,6 +36,7 @@ class TextDataset(Dataset):
         self.texts = texts
         self.labels = labels
         self.queries = queries or [f"query_{i}" for i in range(len(texts))]
+        self.weights = weights
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.is_regression = is_regression
@@ -46,6 +48,7 @@ class TextDataset(Dataset):
         text = str(self.texts[idx])
         label = self.labels[idx]
         query = str(self.queries[idx])
+        weight = float(self.weights[idx])
         
         # 分词和编码
         encoding = self.tokenizer(
@@ -72,6 +75,7 @@ class TextDataset(Dataset):
         
         # 添加query信息（用于GAUC计算）
         encoding['query'] = query
+        encoding['weight'] = torch.tensor(weight, dtype=torch.float)
         
         return encoding
 
@@ -309,6 +313,7 @@ class DataProcessor:
     def __init__(self, 
                  text_columns: List[str] = ["query", "text"],
                  label_column: str = "label",
+                 weight_column: str = None,
                  task_type: str = "classification"):
         """
         初始化数据处理器
@@ -320,6 +325,7 @@ class DataProcessor:
         """
         self.text_columns = text_columns
         self.label_column = label_column
+        self.weight_column = weight_column
         self.task_type = task_type
         self.label_encoder = None
         self.is_regression = task_type == "regression"
@@ -382,6 +388,15 @@ class DataProcessor:
                 texts.append(combined_text)
                 queries.append(f"query_{len(queries)}")
         
+        if self.weight_column:
+            if self.weight_column in df.columns:
+                weights = df[self.weight_column].tolist()
+            else:
+                logger.warning(f"指定的权重列 {self.weight_column} 不存在，权重全设为1")
+                weights = [1.0] * len(texts)
+        else:
+            logger.warning("没有提供权重列，权重全设为1")
+            weights = [1.0] * len(texts)
         # 处理标签
         labels = df[self.label_column].tolist()
         
@@ -394,7 +409,7 @@ class DataProcessor:
         #         labels = self.label_encoder.transform(labels)
         
         logger.info(f"预处理完成，文本数量: {len(texts)}, 标签数量: {len(labels)}, query数量: {len(queries)}")
-        return texts, labels, queries
+        return texts, labels, queries, weights
     
     def split_data(self,
                    texts: List[str],
@@ -435,6 +450,7 @@ class DataProcessor:
                           labels: List[float],
                           tokenizer: AutoTokenizer,
                           queries: List[str] = None,
+                          weights: List[float] = None,
                           batch_size: int = 32,
                           max_length: int = 128,
                           shuffle: bool = True) -> DataLoader:
@@ -459,7 +475,8 @@ class DataProcessor:
             tokenizer=tokenizer,
             max_length=max_length,
             is_regression=self.is_regression,
-            queries=queries
+            queries=queries,
+            weights=weights,
         )
         
         dataloader = DataLoader(
@@ -570,6 +587,7 @@ def create_data_loaders(config,
         processor = DataProcessor(
             text_columns=config.TEXT_COLUMNS,
             label_column=config.LABEL_COLUMN,
+            weight_column = config.WEIGHT_COLUMN,
             task_type=config.TASK_TYPE
         )
         
@@ -577,7 +595,7 @@ def create_data_loaders(config,
         train_df = processor.load_data(config.TRAIN_FILE)
         
         # 预处理数据
-        texts, labels, queries = processor.preprocess_data(train_df)
+        texts, labels, queries, weights = processor.preprocess_data(train_df)
         
         # 根据配置决定是否使用独立验证集
         if getattr(config, 'USE_VALIDATION_SET', True):
@@ -605,7 +623,7 @@ def create_data_loaders(config,
         else:
             # 不使用独立验证集：直接使用测试集作为验证集
             train_dataloader = processor.create_dataloader(
-                texts, labels, tokenizer, queries,
+                texts, labels, tokenizer, queries, weights,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=True
@@ -663,6 +681,7 @@ def create_test_dataloader(config,
             processor = DataProcessor(
                 text_columns=config.TEXT_COLUMNS,
                 label_column=config.LABEL_COLUMN,
+                weight_column=config.WEIGHT_COLUMN,
                 task_type=config.TASK_TYPE
             )
         
@@ -670,11 +689,11 @@ def create_test_dataloader(config,
         test_df = processor.load_data(config.TEST_FILE)
         
         # 预处理数据
-        texts, labels, queries = processor.preprocess_data(test_df)
+        texts, labels, queries, weights = processor.preprocess_data(test_df)
         
         # 创建测试数据加载器
         test_dataloader = processor.create_dataloader(
-            texts, labels, tokenizer, queries,
+            texts, labels, tokenizer, queries, weights,
             batch_size=config.BATCH_SIZE,
             max_length=config.MAX_LENGTH,
             shuffle=False
