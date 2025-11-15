@@ -157,6 +157,67 @@ def compute_group_ndcg_k(all_labels: List[np.ndarray],
     
     return avg_ndcg
 
+def compute_precision_at_1(labels: np.ndarray, scores: np.ndarray) -> float:
+    """计算单个 query 的 Precision@1（基于真实和预测的 Top-1 一致性）"""
+    if len(labels) < 2:
+        return None  # 跳过样本数不足的query
+
+    true_top = np.argmax(labels)     #真实最高分索引
+    pred_top = np.argmax(scores)     #预测最高分索引
+
+    return 1.0 if true_top == pred_top else 0.0
+
+def compute_mrr(labels: np.ndarray, scores: np.ndarray) -> float:
+    """计算单个 query 的 MRR（真实 top 文档在预测排序中的 reciprocal rank）"""
+    if len(labels) < 2:
+        return None
+
+    true_top = np.argmax(labels)
+
+    # 预测排序
+    pred_rank = np.argsort(-scores)
+
+    # 找到真实 Top 文档在预测排序中的位置（从 1 开始计数）
+    for rank, idx in enumerate(pred_rank, start=1):
+        if idx == true_top:
+            return 1.0 / rank
+
+    return 0.0  # 理论上不会发生
+
+def compute_group_precision_at_1(group_labels, group_scores):
+    total = 0
+    valid = 0
+
+    for labels, scores in zip(group_labels, group_scores):
+        p1 = compute_precision_at_1(labels, scores)
+        if p1 is not None:
+            total += p1
+            valid += 1
+
+    if valid == 0:
+        return 0.0
+    
+    logger.info(f'Precision@1计算完成，有效query数: {valid}, 总query数: {len(group_labels)}')
+    return total / valid
+
+
+def compute_group_mrr(group_labels, group_scores):
+    total = 0
+    valid = 0
+
+    for labels, scores in zip(group_labels, group_scores):
+        mrr = compute_mrr(labels, scores)
+        if mrr is not None:
+            total += mrr
+            valid += 1
+
+    if valid == 0:
+        return 0.0
+    
+    logger.info(f'MRR计算完成，有效query数: {valid}, 总query数: {len(group_labels)}')
+    return total / valid
+
+
 class RankingMetricsCalculator:
     """排序指标计算器"""
     
@@ -241,6 +302,12 @@ class RankingMetricsCalculator:
                 except Exception as e:
                     logger.warning(f"NDCG@{k}计算失败: {e}")
                     metrics[f'ndcg@{k}'] = 0.0
+
+            # Precision@1 和 MRR（只计算一次，不随 k 变化）
+            if 'precision@1' not in metrics:
+                metrics['precision@1'] = compute_group_precision_at_1(group_labels, group_scores)
+                metrics['mrr'] = compute_group_mrr(group_labels, group_scores)
+
         
         return metrics
     
