@@ -12,7 +12,7 @@ import logging
 from tqdm import tqdm
 import os
 import json
-from utils.loss_utils import *
+from utils.losses import *
 from utils.callbacks import EarlyStopping
 
 logging.basicConfig(level=logging.INFO)
