@@ -277,8 +277,10 @@ class ModelTrainer:
                     
                     # 收集预测和标签
                     predictions = logits * mask.float()
+                    logger.info(f'listwise任务评估中，predictions shape: {predictions.shape}, labels shape: {batch["labels"].shape}')
                     all_predictions.extend(predictions.cpu().numpy().flatten())
                     all_labels.extend(batch['labels'].cpu().numpy().flatten())
+                    logger.info(f'stack size = {np.stack(all_labels).shape}')
                 # 累计损失
                 total_loss += loss.item()
         
@@ -341,7 +343,7 @@ class ModelTrainer:
                 metrics = MetricsCalculator.calculate_classification_metrics(
                     np.array(all_labels), np.array(all_predictions)
                 )
-        elif self.task_type == 'regression':  # regression
+        elif self.config.TASK_TYPE == 'regression':  # regression
             # 回归任务：如果有query信息，计算GAUC和NDCG
             if all_queries and len(all_queries) == len(all_labels):
                 metrics = RankingMetricsCalculator.calculate_ctr_metrics(
