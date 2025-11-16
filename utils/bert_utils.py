@@ -341,7 +341,7 @@ class ModelTrainer:
                 metrics = MetricsCalculator.calculate_classification_metrics(
                     np.array(all_labels), np.array(all_predictions)
                 )
-        else:  # regression
+        elif self.task_type == 'regression':  # regression
             # 回归任务：如果有query信息，计算GAUC和NDCG
             if all_queries and len(all_queries) == len(all_labels):
                 metrics = RankingMetricsCalculator.calculate_ctr_metrics(
@@ -356,6 +356,14 @@ class ModelTrainer:
                 metrics = MetricsCalculator.calculate_regression_metrics(
                     np.array(all_labels), np.array(all_predictions)
                 )
+        else:
+            from utils.listwise_metric import RankingMetricsCalculatorListwise
+            metrics = RankingMetricsCalculatorListwise.calculate(
+                np.array(all_labels),
+                np.array(all_predictions),
+                k_values=[1, 2, 5]
+            )
+            logger.info(f"listwise指标: {metrics}")
         
         return avg_loss, metrics
     def _calculate_model_score(self, val_loss: float, val_metrics: Dict[str, float]) -> float:
