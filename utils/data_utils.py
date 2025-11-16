@@ -692,8 +692,8 @@ def listwise_collate_fn(batch: List[Tuple], max_length: int = 256):
                 padded_token_type_ids[i, j] = encoding['token_type_ids']
         
         # 填充标签和权重
-        # padded_labels[i, :list_size] = torch.tensor(labels, dtype=torch.float)
-        padded_labels[i, :list_size] = convert_to_rank_distribution(torch.tensor(labels, dtype=torch.float))
+        padded_labels[i, :list_size] = torch.tensor(labels, dtype=torch.float)
+        # padded_labels[i, :list_size] = convert_to_rank_distribution(torch.tensor(labels, dtype=torch.float))
         padded_weights[i, :list_size] = torch.tensor(weights, dtype=torch.float)
         mask[i, :list_size] = 1
     
