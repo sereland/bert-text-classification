@@ -37,20 +37,20 @@ class BertClassifier(nn.Module):
         )
         
         # 损失函数
-        self.criterion = self._get_criterion()
+        # self.criterion = self._get_criterion()
         # logger.info(f'[debug] config={self.config.get_config_dict()}')
         # logger.info(f'[debug] config.NUM_LABELS={self.config.NUM_LABELS}')
         
         logger.info(f"BERT分类器初始化完成 - 模型: {self.config.MODEL_NAME}, 类别数: {self.config.NUM_LABELS}")
     
-    def _get_criterion(self) -> nn.Module:
-        """获取损失函数"""
-        if self.config.TASK_TYPE == "classification":
-            return nn.CrossEntropyLoss()
-        elif self.config.TASK_TYPE == "regression":
-            return nn.MSELoss()
-        else:
-            raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
+    # def _get_criterion(self) -> nn.Module:
+    #     """获取损失函数"""
+    #     if self.config.TASK_TYPE == "classification":
+    #         return nn.CrossEntropyLoss()
+    #     elif self.config.TASK_TYPE == "regression":
+    #         return nn.MSELoss()
+    #     else:
+    #         raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
     
     def forward(self, 
                 input_ids: torch.Tensor,
