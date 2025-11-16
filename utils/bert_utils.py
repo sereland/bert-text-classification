@@ -277,7 +277,7 @@ class ModelTrainer:
                     
                     # 收集预测和标签
                     predictions = logits * mask.float()
-                    logger.info(f'listwise任务评估中，predictions shape: {predictions.shape}, labels shape: {batch["labels"].shape}')
+                    # logger.info(f'listwise任务评估中，predictions shape: {predictions.shape}, labels shape: {batch["labels"].shape}')
                     all_predictions.append(predictions.cpu().numpy())
                     all_labels.append(batch['labels'].cpu().numpy())
                 # 累计损失

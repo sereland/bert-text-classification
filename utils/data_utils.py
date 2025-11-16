@@ -547,10 +547,15 @@ class ListwiseDataset(Dataset):
         """预处理数据，处理候选数超过限制的情况"""
         processed_data = []
         
+        skip_query = 0
         for query, answers, labels, weights in self.grouped_data:
             current_answers = answers.copy()
             current_labels = labels.copy()
             current_weights = weights.copy()
+
+            if len(current_answers) < 2:
+                skip_query += 1
+                continue
             
             # 如果候选数超过限制，进行采样
             if self.max_candidates and len(current_answers) > self.max_candidates:
@@ -559,6 +564,7 @@ class ListwiseDataset(Dataset):
                 )
             
             processed_data.append((query, current_answers, current_labels, current_weights))
+        logger.info(f'[listwise] 预处理完成，跳过的query数量: {skip_query}, 有效query数量: {len(processed_data)}，总query数量: {len(self.grouped_data)}')
         
         return processed_data
     
