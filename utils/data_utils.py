@@ -647,7 +647,7 @@ def listwise_collate_fn(batch: List[Tuple], max_length: int = 256):
     # 找到当前batch中最长的列表长度
     list_sizes = [list_size for _, _, _, list_size in batch]
     max_list_size = max(list_sizes)
-    max_list_size = min(self.max_candidates, max_list_size)
+    max_list_size = min(5, max_list_size)  # TODO：这里先写死5了，后面可以改成动态的
     batch_size = len(batch)
     
     # 初始化padding后的tensor
