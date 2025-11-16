@@ -173,6 +173,7 @@ class ModelTrainer:
         all_predictions = []
         all_prediction_pos_scores = []
         all_labels = []
+        all_masks = []
         
         # 用于GAUC和NDCG计算的额外数据
         all_score_diffs = []  # 用于pairwise任务的GAUC计算
@@ -280,6 +281,7 @@ class ModelTrainer:
                     # logger.info(f'listwise任务评估中，predictions shape: {predictions.shape}, labels shape: {batch["labels"].shape}')
                     all_predictions.append(predictions.cpu().numpy())
                     all_labels.append(batch['labels'].cpu().numpy())
+                    all_masks.append(mask.cpu().numpy())
                 # 累计损失
                 total_loss += loss.item()
         
@@ -361,10 +363,12 @@ class ModelTrainer:
             from utils.listwise_metric import RankingMetricsCalculatorListwise
             all_predictions = np.concatenate(all_predictions, axis=0)
             all_labels = np.concatenate(all_labels, axis=0)
+            all_masks = np.concatenate(all_masks, axis=0)
             # logger.info(f'listwise任务评估中，all_predictions shape: {all_predictions.shape}, all_labels shape: {all_labels.shape}')
             metrics = RankingMetricsCalculatorListwise.calculate(
                 np.array(all_labels),
                 np.array(all_predictions),
+                np.array(all_masks),
                 k_values=[1, 2, 5]
             )
             logger.info(f"listwise指标: {metrics}")
