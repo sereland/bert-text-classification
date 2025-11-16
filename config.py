@@ -117,6 +117,13 @@ TASK_CONFIGS = {
         "TEXT_COLUMNS": ["query", "text1", "text2"],  # pairwise任务需要三个文本列
         "NUM_LABELS": 1,  # pairwise任务输出单个得分
         "BEST_MODEL_CRITERION": "auc",  # pairwise任务默认使用AUC作为评估指标
+    },
+    "listwise": {
+        "TASK_TYPE": "listwise",
+        "LOSS_FUNCTION": "MaskedListNetLoss",
+        "TEXT_COLUMNS": ["query", "text"],  # listwise任务需要query和texts列
+        "NUM_LABELS": 1,  # listwise任务输出单个得分
+        "BEST_MODEL_CRITERION": "ndcg",  # listwise任务默认使用NDCG作为评估指标
     }
 }
 
