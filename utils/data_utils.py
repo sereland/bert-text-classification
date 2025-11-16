@@ -661,6 +661,8 @@ def listwise_collate_fn(batch: List[Tuple], max_length: int = 256):
     # 填充数据
     for i, (encodings, labels, weights, list_size) in enumerate(batch):
         # 填充编码
+        if list_size < 2:
+            continue
         for j in range(list_size):
             encoding = encodings[j]
             padded_input_ids[i, j] = encoding['input_ids']

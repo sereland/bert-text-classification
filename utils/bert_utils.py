@@ -361,7 +361,7 @@ class ModelTrainer:
             from utils.listwise_metric import RankingMetricsCalculatorListwise
             all_predictions = np.concatenate(all_predictions, axis=0)
             all_labels = np.concatenate(all_labels, axis=0)
-            logger.info(f'listwise任务评估中，all_predictions shape: {all_predictions.shape}, all_labels shape: {all_labels.shape}')
+            # logger.info(f'listwise任务评估中，all_predictions shape: {all_predictions.shape}, all_labels shape: {all_labels.shape}')
             metrics = RankingMetricsCalculatorListwise.calculate(
                 np.array(all_labels),
                 np.array(all_predictions),
