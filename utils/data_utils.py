@@ -644,6 +644,17 @@ def exponential_rank_weight(scores, alpha=0.8):
     ranks = torch.argsort(torch.argsort(-scores))
     weights = torch.exp(-alpha * ranks.float())
     return weights / weights.sum()
+
+import torch.nn.functional as F
+def convert_to_rank_distribution(true_scores):
+    """
+    将真实CTR转换为排序概率分布
+    """
+    # 第一步：获取排序序号（0表示最高）
+    ranks = torch.argsort(torch.argsort(-true_scores))
+    # 第二步：将排序转换为概率分布（排名越靠前概率越高）
+    true_probs = F.softmax(-ranks.float(), dim=0)
+    return true_probs
 def listwise_collate_fn(batch: List[Tuple], max_length: int = 256):
     """
     Listwise数据的collate函数 - 单塔BERT版本
@@ -682,7 +693,7 @@ def listwise_collate_fn(batch: List[Tuple], max_length: int = 256):
         
         # 填充标签和权重
         # padded_labels[i, :list_size] = torch.tensor(labels, dtype=torch.float)
-        padded_labels[i, :list_size] = exponential_rank_weight(torch.tensor(labels, dtype=torch.float))
+        padded_labels[i, :list_size] = convert_to_rank_distribution(torch.tensor(labels, dtype=torch.float))
         padded_weights[i, :list_size] = torch.tensor(weights, dtype=torch.float)
         mask[i, :list_size] = 1
     
