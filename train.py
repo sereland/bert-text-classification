@@ -27,7 +27,7 @@ def setup_args():
     
     # 基本参数
     parser.add_argument("--task_type", type=str, default="classification",
-                       choices=["classification", "regression", "pairwise"],
+                       choices=["classification", "regression", "pairwise", "listwise"],
                        help="任务类型：分类、回归或pairwise")
     parser.add_argument("--model_type", type=str, default="bert",
                        choices=["bert", "bert_cnn"],
