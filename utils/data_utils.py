@@ -531,7 +531,7 @@ class ListwiseDataset(Dataset):
                  queries: List[str],
                  weights: List[float],
                  max_length: int = 256,
-                 max_candidates: int = 10,
+                 max_candidates: int = 5,
                  sampling_strategy: str = "topk"):
         
         self.grouped_data = grouped_data
@@ -647,6 +647,7 @@ def listwise_collate_fn(batch: List[Tuple], max_length: int = 256):
     # 找到当前batch中最长的列表长度
     list_sizes = [list_size for _, _, _, list_size in batch]
     max_list_size = max(list_sizes)
+    max_list_size = min(self.max_candidates, max_list_size)
     batch_size = len(batch)
     
     # 初始化padding后的tensor
