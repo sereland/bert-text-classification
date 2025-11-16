@@ -768,7 +768,7 @@ class ListwiseDataProcessor:
                     weights.append(1.0)
             
             grouped_data.append((query, answers, labels, weights))
-        
+        logger.info(f'[listwise] 分组完成，query数量: {len(grouped_data)}')
         dataset = ListwiseDataset(
             grouped_data=grouped_data,
             texts=None,
