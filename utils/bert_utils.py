@@ -280,9 +280,6 @@ class ModelTrainer:
                     logger.info(f'listwise任务评估中，predictions shape: {predictions.shape}, labels shape: {batch["labels"].shape}')
                     all_predictions.append(predictions.cpu().numpy())
                     all_labels.append(batch['labels'].cpu().numpy())
-                    all_predictions = np.concatenate(all_predictions, axis=0)
-                    all_labels = np.concatenate(all_labels, axis=0)
-                    logger.info(f'stack size = {np.stack(all_labels).shape}')
                 # 累计损失
                 total_loss += loss.item()
         
@@ -362,6 +359,9 @@ class ModelTrainer:
                 )
         else:
             from utils.listwise_metric import RankingMetricsCalculatorListwise
+            all_predictions = np.concatenate(all_predictions, axis=0)
+            all_labels = np.concatenate(all_labels, axis=0)
+            logger.info(f'listwise任务评估中，all_predictions shape: {all_predictions.shape}, all_labels shape: {all_labels.shape}')
             metrics = RankingMetricsCalculatorListwise.calculate(
                 np.array(all_labels),
                 np.array(all_predictions),
