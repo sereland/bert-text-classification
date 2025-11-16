@@ -220,9 +220,8 @@ class ModelTrainer:
                     else:
                         # 如果没有query信息，生成默认query
                         batch_queries = [f"query_{i}" for i in range(len(labels))]
-                        all_queries.extend(batch_queries)
-                        
-                else:
+                        all_queries.extend(batch_queries)     
+                elif self.config.TASK_TYPE in ["classification", "regression"]:
                     # 分类或回归任务
                     model_batch = {k: v for k, v in batch.items() if k != 'query' and k != 'weight'}
                     outputs = self.model(**model_batch)
@@ -252,7 +251,34 @@ class ModelTrainer:
                             logger.warning("没有query信息，GAUC结果不可信")
                             batch_queries = [f"query_{i}" for i in range(len(batch['labels']))]
                             all_queries.extend(batch_queries)
-                
+                else:  # listwise
+                    input_ids = batch['input_ids']
+                    attention_mask = batch['attention_mask']
+                    mask = batch['mask']
+                    batch_size, list_size, seq_len = input_ids.size()
+                    flattened_input_ids = input_ids.view(batch_size * list_size, seq_len)
+                    flattened_attention_mask = attention_mask.view(batch_size * list_size, seq_len)
+                    if 'token_type_ids' in batch:
+                        token_type_ids = batch['token_type_ids']
+                        flattened_token_type_ids = token_type_ids.view(batch_size * list_size, seq_len)
+                        outputs = self.model(
+                            input_ids=flattened_input_ids,
+                            attention_mask=flattened_attention_mask,
+                            token_type_ids=flattened_token_type_ids
+                        )
+                    else:
+                        outputs = self.model(
+                            input_ids=flattened_input_ids,
+                            attention_mask=flattened_attention_mask
+                        )
+                    
+                    logits = outputs['logits'].view(batch_size, list_size)
+                    loss = self.criterion(logits, batch['labels'], mask)
+                    
+                    # 收集预测和标签
+                    predictions = logits * mask.float()
+                    all_predictions.extend(predictions.cpu().numpy().flatten())
+                    all_labels.extend(batch['labels'].cpu().numpy().flatten())
                 # 累计损失
                 total_loss += loss.item()
         
