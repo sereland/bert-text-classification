@@ -423,9 +423,7 @@ class ModelTrainer:
                     outputs = self.model(**model_batch)
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
                     loss = (loss * weights).mean()
-                else:
-                    logger.info('listwise任务训练中...')
-
+                else:  # listwise
                     input_ids = batch['input_ids']
                     attention_mask = batch['attention_mask']
                     mask = batch['mask']
