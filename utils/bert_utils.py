@@ -278,8 +278,10 @@ class ModelTrainer:
                     # 收集预测和标签
                     predictions = logits * mask.float()
                     logger.info(f'listwise任务评估中，predictions shape: {predictions.shape}, labels shape: {batch["labels"].shape}')
-                    all_predictions.extend(predictions.cpu().numpy().flatten())
-                    all_labels.extend(batch['labels'].cpu().numpy().flatten())
+                    all_predictions.extend(predictions.cpu().numpy())
+                    all_labels.extend(batch['labels'].cpu().numpy())
+                    all_predictions = np.stack(all_predictions, dim=0)
+                    all_labels = np.stack(all_labels, dim=0)
                     logger.info(f'stack size = {np.stack(all_labels).shape}')
                 # 累计损失
                 total_loss += loss.item()
