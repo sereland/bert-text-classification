@@ -6,226 +6,17 @@ from transformers import AutoModel, AutoTokenizer, get_linear_schedule_with_warm
 from transformers import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score, classification_report, roc_auc_score
 from sklearn import metrics
-from utils.metrics_utils import RankingMetricsCalculator, compute_gauc
+from utils.metrics_utils import RankingMetricsCalculator, compute_gauc, MetricsCalculator
 import logging
 from tqdm import tqdm
 import os
 import json
+from utils.loss_utils import *
+from utils.callbacks import EarlyStopping
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-class PairwiseLoss(nn.Module):
-    """成对损失函数基类"""
-    
-    def __init__(self, loss_type: str = "ranknet"):
-        """
-        初始化成对损失函数
-        
-        Args:
-            loss_type: 损失函数类型 (ranknet, margin_ranking, bpr)
-        """
-        super().__init__()
-        self.loss_type = loss_type
-        
-    def forward(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        """
-        计算成对损失
-        
-        Args:
-            scores1: 第一个文本的得分 [batch_size]
-            scores2: 第二个文本的得分 [batch_size]
-            labels: 标签 [batch_size] (1表示text1优于text2，0表示text2优于text1)
-            
-        Returns:
-            损失值
-        """
-        if self.loss_type == "ranknet":
-            return self._ranknet_loss(scores1, scores2, labels)
-        elif self.loss_type == "margin_ranking":
-            return self._margin_ranking_loss(scores1, scores2, labels)
-        elif self.loss_type == "bpr":
-            return self._bpr_loss(scores1, scores2, labels)
-        else:
-            raise ValueError(f"不支持的损失函数类型: {self.loss_type}")
-    
-    def _ranknet_loss(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        """
-        RankNet损失函数
-        
-        Args:
-            scores1: 第一个文本的得分
-            scores2: 第二个文本的得分
-            labels: 标签
-            
-        Returns:
-            RankNet损失
-        """
-        # 计算得分差
-        score_diff = scores1 - scores2
-        
-        # 将标签转换为-1或1
-        target = 2 * labels - 1
-        
-        # 计算交叉熵损失
-        loss = torch.log(1 + torch.exp(-target * score_diff))
-        
-        return loss.mean()
-    
-    def _margin_ranking_loss(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor, margin: float = 1.0) -> torch.Tensor:
-        """
-        Margin Ranking损失函数
-        
-        Args:
-            scores1: 第一个文本的得分
-            scores2: 第二个文本的得分
-            labels: 标签
-            margin: 边界值
-            
-        Returns:
-            Margin Ranking损失
-        """
-        # 将标签转换为-1或1
-        target = 2 * labels - 1
-        
-        # 计算损失
-        loss = torch.relu(-target * (scores1 - scores2) + margin)
-        
-        return loss.mean()
-    
-    def _bpr_loss(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        """
-        Bayesian Personalized Ranking (BPR) 损失函数
-        
-        Args:
-            scores1: 第一个文本的得分
-            scores2: 第二个文本的得分
-            labels: 标签
-            
-        Returns:
-            BPR损失
-        """
-        # 只处理正样本对（labels=1）
-        mask = labels == 1
-        if not mask.any():
-            return torch.tensor(0.0, device=scores1.device, requires_grad=True)
-        
-        # 计算得分差
-        score_diff = scores1[mask] - scores2[mask]
-        
-        # 计算BPR损失
-        loss = -torch.log(torch.sigmoid(score_diff))
-        
-        return loss.mean()
-
-class EarlyStopping:
-    """早停机制"""
-    
-    def __init__(self, patience: int = 3, min_delta: float = 0.0):
-        """
-        初始化早停机制
-        
-        Args:
-            patience: 容忍的epoch数
-            min_delta: 最小改进量
-        """
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-    
-    def __call__(self, score: float) -> bool:
-        """
-        调用早停机制
-        
-        Args:
-            score: 当前得分
-            
-        Returns:
-            是否应该早停
-        """
-        if self.best_score is None:
-            self.best_score = score
-        elif score < self.best_score + self.min_delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = score
-            self.counter = 0
-        
-        return self.early_stop
-
-class MetricsCalculator:
-    """指标计算器"""
-    
-    @staticmethod
-    def calculate_auc(y_true: np.ndarray, y_scores: np.ndarray) -> float:
-        """
-        计算AUC指标
-        
-        Args:
-            y_true: 真实标签
-            y_scores: 预测得分
-            
-        Returns:
-            AUC值
-        """
-        auc = roc_auc_score(y_true, y_scores)
-        print(f'auc: {auc}')
-        return auc
-
-    @staticmethod
-    def calculate_classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-        """
-        计算分类指标
-        
-        Args:
-            y_true: 真实标签
-            y_pred: 预测标签
-            
-        Returns:
-            指标字典
-        """
-        accuracy = accuracy_score(y_true, y_pred)
-        precision, recall, f1, _ = precision_recall_fscore_support(
-            y_true, y_pred, average='weighted'
-        )
-        print(classification_report(y_true, y_pred, digits=4))
-        
-        return {
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'f1': f1
-        }
-    
-    @staticmethod
-    def calculate_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-        """
-        计算回归指标
-        
-        Args:
-            y_true: 真实值
-            y_pred: 预测值
-            
-        Returns:
-            指标字典
-        """
-        mse = mean_squared_error(y_true, y_pred)
-        mae = mean_absolute_error(y_true, y_pred)
-        rmse = np.sqrt(mse)
-        r2 = r2_score(y_true, y_pred)
-        
-        return {
-            'mse': mse,
-            'mae': mae,
-            'rmse': rmse,
-            'r2': r2
-        }
 
 class ModelTrainer:
     """模型训练器"""
@@ -341,6 +132,8 @@ class ModelTrainer:
                 return nn.MSELoss()
             elif self.config.TASK_TYPE == "pairwise":
                 return PairwiseLoss("ranknet")  # 默认使用RankNet损失
+            elif self.config.TASK_TYPE == "listwise":
+                return MaskedListNetLoss()
             else:
                 raise ValueError(f"不支持的任务类型: {self.config.TASK_TYPE}")
         else:
@@ -363,6 +156,8 @@ class ModelTrainer:
                 return PairwiseLoss("margin_ranking")
             elif loss_function == "BPRLoss":
                 return PairwiseLoss("bpr")
+            elif loss_function == "MaskedListNetLoss":
+                return MaskedListNetLoss()
             else:
                 raise ValueError(f"不支持的损失函数: {loss_function}")
     
@@ -620,15 +415,38 @@ class ModelTrainer:
                     
                     # 计算pairwise损失
                     loss = self.criterion(scores1, scores2, batch['labels'])
-                else:
+                elif self.config.TASK_TYPE in ["classification", "regression"]:
                     # 分类或回归任务
                     # 移除query字段，因为模型不接受这个参数
-                    weights = batch[ self.config.WEIGHT_COLUMN]
+                    weights = batch[self.config.WEIGHT_COLUMN]
                     model_batch = {k: v for k, v in batch.items() if k != 'query' and k != 'weight'}
                     outputs = self.model(**model_batch)
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
                     loss = (loss * weights).mean()
-                
+                else:
+                    logger.info('listwise任务训练中...')
+
+                    input_ids = batch['input_ids']
+                    attention_mask = batch['attention_mask']
+                    mask = batch['mask']
+                    batch_size, list_size, seq_len = input_ids.size()
+                    flattened_input_ids = input_ids.view(batch_size * list_size, seq_len)
+                    flattened_attention_mask = attention_mask.view(batch_size * list_size, seq_len)
+                    if 'token_type_ids' in batch:
+                        token_type_ids = batch['token_type_ids']
+                        flattened_token_type_ids = token_type_ids.view(batch_size * list_size, seq_len)
+                        outputs = self.model(
+                            input_ids=flattened_input_ids,
+                            attention_mask=flattened_attention_mask,
+                            token_type_ids=flattened_token_type_ids
+                        )
+                    else:
+                        outputs = self.model(
+                            input_ids=flattened_input_ids,
+                            attention_mask=flattened_attention_mask
+                        )
+                    logits = outputs['logits'].view(batch_size, list_size)
+                    loss = self.criterion(logits, batch['labels'], mask)
                 # 反向传播
                 loss.backward()
                 

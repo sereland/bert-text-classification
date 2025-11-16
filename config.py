@@ -20,7 +20,7 @@ class Config:
             'NUM_LABELS': 1,  # 默认分类任务类别数，回归任务设为1
             
             # 训练配置
-            'TASK_TYPE': "classification",  # 可选: classification, regression, pairwise
+            'TASK_TYPE': "classification",  # 可选: classification, regression, pairwise, listwise
             'BATCH_SIZE': 32,
             'VALID_BATCH_SIZE': 256,
             'TEST_BATCH_SIZE': 256,

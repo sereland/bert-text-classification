@@ -389,6 +389,75 @@ class RankingMetricsCalculator:
         
         return metrics
 
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, mean_squared_error, mean_absolute_error, r2_score, classification_report, roc_auc_score
+class MetricsCalculator:
+    """指标计算器"""
+    
+    @staticmethod
+    def calculate_auc(y_true: np.ndarray, y_scores: np.ndarray) -> float:
+        """
+        计算AUC指标
+        
+        Args:
+            y_true: 真实标签
+            y_scores: 预测得分
+            
+        Returns:
+            AUC值
+        """
+        auc = roc_auc_score(y_true, y_scores)
+        print(f'auc: {auc}')
+        return auc
+
+    @staticmethod
+    def calculate_classification_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+        """
+        计算分类指标
+        
+        Args:
+            y_true: 真实标签
+            y_pred: 预测标签
+            
+        Returns:
+            指标字典
+        """
+        accuracy = accuracy_score(y_true, y_pred)
+        precision, recall, f1, _ = precision_recall_fscore_support(
+            y_true, y_pred, average='weighted'
+        )
+        print(classification_report(y_true, y_pred, digits=4))
+        
+        return {
+            'accuracy': accuracy,
+            'precision': precision,
+            'recall': recall,
+            'f1': f1
+        }
+    
+    @staticmethod
+    def calculate_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+        """
+        计算回归指标
+        
+        Args:
+            y_true: 真实值
+            y_pred: 预测值
+            
+        Returns:
+            指标字典
+        """
+        mse = mean_squared_error(y_true, y_pred)
+        mae = mean_absolute_error(y_true, y_pred)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_true, y_pred)
+        
+        return {
+            'mse': mse,
+            'mae': mae,
+            'rmse': rmse,
+            'r2': r2
+        }
+
 if __name__ == "__main__":
     # 测试指标计算
     print("测试GAUC和NDCG@K计算...")
