@@ -218,7 +218,7 @@ class PairwiseDataProcessor:
             texts1.append(text1)
             texts2.append(text2)
             queries.append(str(row[query_col]))  # 保存原始query文本
-            logger.info(f'[debug] queries sample: {queries[:5]}, type: {type(queries)}, shape: {len(queries)}')  # debug
+        logger.info(f'[debug] queries sample: {queries[:5]}, type: {type(queries)}, shape: {len(queries)}')  # debug
         
         # 处理标签
         labels = df[self.label_column].tolist()
@@ -838,6 +838,7 @@ def create_data_loaders(config,
     """
     # 根据任务类型选择数据处理器
     if config.TASK_TYPE == "pairwise":
+        logger.info('创建pairwise数据加载器')
         processor = PairwiseDataProcessor(
             text_columns=config.TEXT_COLUMNS_PAIRWISE,
             label_column=config.LABEL_COLUMN
