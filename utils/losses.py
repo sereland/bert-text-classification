@@ -142,11 +142,13 @@ class PairwiseLoss(nn.Module):
         # 计算得分差
         score_diff = scores1 - scores2
         
-        # 将标签转换为-1或1
-        target = 2 * labels - 1
+        # # 将标签转换为-1或1
+        # target = 2 * labels - 1
         
-        # 计算交叉熵损失
-        loss = torch.log(1 + torch.exp(-target * score_diff))
+        # # 计算交叉熵损失
+        # loss = torch.log(1 + torch.exp(-target * score_diff))
+
+        loss = F.softplus(-score_diff) # 形状: (batch_size, 1)
         
         return loss.mean()
     
