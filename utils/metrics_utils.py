@@ -165,7 +165,7 @@ def compute_precision_at_1(labels: np.ndarray, scores: np.ndarray) -> float:
     true_top = np.argmax(labels)     #真实最高分索引
     pred_top = np.argmax(scores)     #预测最高分索引
 
-    logger.info(f'[debug]p@1: {labels}\n, scores: {scores}\n, true_top: {true_top}\n, pred_top: {pred_top}')
+    # logger.info(f'[debug]p@1: {labels}\n, scores: {scores}\n, true_top: {true_top}\n, pred_top: {pred_top}')
 
     return 1.0 if true_top == pred_top else 0.0
 
