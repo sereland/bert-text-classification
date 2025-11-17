@@ -105,6 +105,7 @@ class PairwiseTextDataset(Dataset):
         self.texts2 = texts2
         self.labels = labels
         self.queries = queries or [f"query_{i}" for i in range(len(texts1))]
+        logger.info(f'[debug] queries type: {type(self.queries)}')
         # logger.info(f'queries sample: {self.queries[:5]}, type: {type(self.queries)}')
         self.tokenizer = tokenizer
         self.max_length = max_length
