@@ -23,39 +23,74 @@ import torch.nn.functional as F
 #         loss = loss.sum(dim=1) / mask.sum(dim=1)  # 按实际候选数平均
 #         return loss.mean()
 
+# class MaskedListNetLoss(nn.Module):
+#     def __init__(self, tau: float = 1.0):
+#         super().__init__()
+#         self.tau = tau
+
+#     def forward(self, predicted_scores, true_labels, mask):
+#         # predicted_scores: (B, L)
+#         # true_labels: (B, L)
+#         # mask: (B, L) bool
+#         mask = mask.bool()
+#         # 屏蔽 pad 位置
+#         neg_inf = -1e9
+#         # 将 masked positions 置为 -inf
+#         masked_scores = predicted_scores.masked_fill(~mask, neg_inf)
+#         masked_labels = true_labels.masked_fill(~mask, neg_inf)
+
+#         # 预测分布
+#         P_pred = F.softmax(masked_scores, dim=-1)
+
+#         # 目标分布：对 labels 做 softmax（可加温度）
+#         P_true = F.softmax(masked_labels / self.tau, dim=-1)
+
+#         # stable log
+#         log_P_pred = torch.log(P_pred + 1e-12)
+
+#         # cross entropy per row (sum over valid positions)
+#         per_row_loss = - (P_true * log_P_pred).sum(dim=1)  # already sums only over valid positions because P_true at pad is ~0
+
+#         # normalize by number of valid items to make loss scale invariant
+#         denom = mask.sum(dim=1).float().clamp_min(1.0)  # 防止除0
+#         per_row_loss = per_row_loss / denom
+
+#         return per_row_loss.mean()
+
 class MaskedListNetLoss(nn.Module):
-    def __init__(self, tau: float = 1.0):
-        super().__init__()
-        self.tau = tau
-
     def forward(self, predicted_scores, true_labels, mask):
-        # predicted_scores: (B, L)
-        # true_labels: (B, L)
-        # mask: (B, L) bool
-        mask = mask.bool()
-        # 屏蔽 pad 位置
-        neg_inf = -1e9
-        # 将 masked positions 置为 -inf
-        masked_scores = predicted_scores.masked_fill(~mask, neg_inf)
-        masked_labels = true_labels.masked_fill(~mask, neg_inf)
+        """
+        predicted_scores: (B, L) raw scores from model
+        true_labels: (B, L) CTR values
+        mask: (B, L) bool
+        """
+        batch_size, list_size = predicted_scores.shape
 
-        # 预测分布
-        P_pred = F.softmax(masked_scores, dim=-1)
+        # Step 1: 对每个 query 内的 true_labels 做 per-query 归一化 → 排序分数
+        true_scores = torch.zeros_like(true_labels)
+        for i in range(batch_size):
+            valid_labels = true_labels[i][mask[i]]
+            if len(valid_labels) > 1:
+                # 方案1：z-score
+                mean = valid_labels.mean()
+                std = valid_labels.std(unbiased=False)
+                normalized = (valid_labels - mean) / (std + 1e-8)
+                true_scores[i][mask[i]] = normalized
+            else:
+                true_scores[i][mask[i]] = 0.0
 
-        # 目标分布：对 labels 做 softmax（可加温度）
-        P_true = F.softmax(masked_labels / self.tau, dim=-1)
+        # Step 2: mask padding
+        masked_pred = predicted_scores.masked_fill(~mask, -1e9)
+        masked_true = true_scores.masked_fill(~mask, 0.0)  # 0 for padding
 
-        # stable log
-        log_P_pred = torch.log(P_pred + 1e-12)
+        # Step 3: softmax to probability
+        P_pred = F.softmax(masked_pred, dim=-1)
+        P_true = F.softmax(masked_true, dim=-1)
 
-        # cross entropy per row (sum over valid positions)
-        per_row_loss = - (P_true * log_P_pred).sum(dim=1)  # already sums only over valid positions because P_true at pad is ~0
-
-        # normalize by number of valid items to make loss scale invariant
-        denom = mask.sum(dim=1).float().clamp_min(1.0)  # 防止除0
-        per_row_loss = per_row_loss / denom
-
-        return per_row_loss.mean()
+        # Step 4: cross entropy
+        loss = - P_true * torch.log(P_pred + 1e-10)
+        loss = loss.sum(dim=1) / mask.sum(dim=1).clamp(min=1.0)
+        return loss.mean()
 
 
 class PairwiseLoss(nn.Module):
