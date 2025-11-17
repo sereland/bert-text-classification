@@ -878,7 +878,7 @@ def create_data_loaders(config,
         else:
             # 不使用独立验证集：直接使用测试集作为验证集
             train_dataloader = processor.create_dataloader(
-                texts1, texts2, labels, queries, tokenizer,
+                texts1, texts2, labels, tokenizer, queries,
                 batch_size=config.BATCH_SIZE,
                 max_length=config.MAX_LENGTH,
                 shuffle=True
