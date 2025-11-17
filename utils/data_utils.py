@@ -218,6 +218,7 @@ class PairwiseDataProcessor:
             texts1.append(text1)
             texts2.append(text2)
             queries.append(str(row[query_col]))  # 保存原始query文本
+            logger.info(f'[debug] queries sample: {queries[:5]}, type: {type(queries)}, shape: {len(queries)}')  # debug
         
         # 处理标签
         labels = df[self.label_column].tolist()
@@ -847,6 +848,7 @@ def create_data_loaders(config,
         
         # 预处理数据
         texts1, texts2, labels, queries = processor.preprocess_data(train_df)
+        logger.info(f'[debug] queries sample after preprocess: {queries[:5]}, type: {type(queries)}, shape: {len(queries)}')  # debug
         
         # 根据配置决定是否使用独立验证集
         if getattr(config, 'USE_VALIDATION_SET', True):
