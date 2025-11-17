@@ -150,12 +150,18 @@ class PairwiseLoss(nn.Module):
 
         # loss = F.softplus(-score_diff) # 形状: (batch_size, 1)
         # 计算a比b好的概率
-        prob_a_better = torch.sigmoid(score_diff)
+        # prob_a_better = torch.sigmoid(score_diff)
         
-        # 二分类交叉熵损失
-        loss = F.binary_cross_entropy(prob_a_better, labels.float())
+        # # 二分类交叉熵损失
+        # loss = F.binary_cross_entropy(prob_a_better, labels.float())
         
-        return loss.mean()
+        # return loss.mean()
+        loss = F.binary_cross_entropy_with_logits(
+            score_diff,
+            labels.float()
+        )
+
+        return loss
     
     def _margin_ranking_loss(self, scores1: torch.Tensor, scores2: torch.Tensor, labels: torch.Tensor, margin: float = 1.0) -> torch.Tensor:
         """

@@ -527,7 +527,8 @@ class ModelTrainer:
                     self.train_history['learning_rates'].append(current_lr)
                 
                 # 定期保存检查点
-                if hasattr(self.config, 'SAVE_STEPS') and (not hasattr(self.config, 'EVAL_STEPS')) and global_step % self.config.SAVE_STEPS == 0:
+                # if hasattr(self.config, 'SAVE_STEPS') and (not hasattr(self.config, 'EVAL_STEPS')) and global_step % self.config.SAVE_STEPS == 0:
+                if hasattr(self.config, 'SAVE_STEPS') and global_step % self.config.SAVE_STEPS == 0:
                     self.save_model(f"checkpoint_step_{global_step}.pt")
                     logger.info(f"检查点已保存: checkpoint_step_{global_step}.pt")
                 

@@ -211,10 +211,8 @@ class PairwiseDataProcessor:
         queries = []
         
         for _, row in df.iterrows():
-            # 构建text1: [CLS]query[SEP]text1[SEP]
-            text1 = f"[CLS]{row[query_col]}[SEP]{row[text1_col]}[SEP]"
-            # 构建text2: [CLS]query[SEP]text2[SEP]
-            text2 = f"[CLS]{row[query_col]}[SEP]{row[text2_col]}[SEP]"
+            text1 = f"{row[query_col]}[SEP]{row[text1_col]}"
+            text2 = f"{row[query_col]}[SEP]{row[text2_col]}"
         
             texts1.append(text1)
             texts2.append(text2)

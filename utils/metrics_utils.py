@@ -173,6 +173,7 @@ def compute_top2_set_accuracy(labels: np.ndarray, scores: np.ndarray, sample_siz
     if len(labels) < 2:
         return None
     
+    np.seed(2020)  # 固定随机种子以确保可重复性
     # 如果指定了抽样大小且样本数大于抽样大小，则进行随机抽样
     if sample_size is not None and len(labels) > sample_size:
         indices = np.random.choice(len(labels), sample_size, replace=False)
@@ -202,6 +203,7 @@ def compute_precision_at_1(labels: np.ndarray, scores: np.ndarray, sample_size: 
     """
     if len(labels) < 2:
         return None
+    np.random.seed(2020)  # 固定随机种子以确保可重复性
     
     # 如果指定了抽样大小且样本数大于抽样大小，则进行随机抽样
     if sample_size is not None and len(labels) > sample_size:
