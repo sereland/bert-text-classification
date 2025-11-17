@@ -664,6 +664,9 @@ def listwise_collate_fn(batch: List[Tuple], max_length: int = 256):
     """
     if not batch:
         return {}
+    batch = [b for b in batch if b[3] >= 2]
+    if len(batch) == 0:
+        return {}
     
     # 找到当前batch中最长的列表长度
     list_sizes = [list_size for _, _, _, list_size in batch]
