@@ -195,12 +195,15 @@ class ModelTrainer:
                     
                     # 计算pairwise损失
                     # loss = self.criterion(scores1, scores2, batch['labels'])
-                    loss = torch.tensor(0.0)  # 占位符
+                    # loss = torch.tensor(0.0)  # 占位
                     
                     # 收集预测和标签
                     # 对于pairwise任务，预测为text1的得分是否大于text2的得分
                     # predictions = (scores1 > scores2).long()  # 使用long类型确保是整数
                     labels = batch['labels']
+                    pred_scors1 = F.sigmoid(scores1)
+                    loss = - labels * torch.log(pred_scors1 + 1e-10)
+                    loss = loss.mean()
                     
                     all_predictions.extend(scores1.cpu().numpy())
                     all_labels.extend(labels.cpu().numpy())
