@@ -1006,7 +1006,7 @@ def create_test_dataloader(config,
         
         # 创建测试数据加载器
         test_dataloader = processor.create_dataloader(
-            texts1, texts2, labels, queries, tokenizer,
+            texts1, texts2, labels, tokenizer, queries,
             batch_size=config.TEST_BATCH_SIZE,
             max_length=config.MAX_LENGTH,
             shuffle=False
