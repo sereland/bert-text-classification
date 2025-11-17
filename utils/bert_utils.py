@@ -188,25 +188,26 @@ class ModelTrainer:
                 if self.config.TASK_TYPE == "pairwise":
                     # pairwise任务：分别处理两个文本
                     text1_inputs = {k.replace('text1_', ''): v for k, v in batch.items() if k.startswith('text1_')}
-                    text2_inputs = {k.replace('text2_', ''): v for k, v in batch.items() if k.startswith('text2_')}
+                    # text2_inputs = {k.replace('text2_', ''): v for k, v in batch.items() if k.startswith('text2_')}
                     
                     scores1 = self.model(**text1_inputs)['logits'].squeeze()
-                    scores2 = self.model(**text2_inputs)['logits'].squeeze()
+                    # scores2 = self.model(**text2_inputs)['logits'].squeeze()
                     
                     # 计算pairwise损失
-                    loss = self.criterion(scores1, scores2, batch['labels'])
+                    # loss = self.criterion(scores1, scores2, batch['labels'])
                     
                     # 收集预测和标签
                     # 对于pairwise任务，预测为text1的得分是否大于text2的得分
-                    predictions = (scores1 > scores2).long()  # 使用long类型确保是整数
+                    # predictions = (scores1 > scores2).long()  # 使用long类型确保是整数
                     labels = batch['labels']
                     
-                    all_predictions.extend(predictions.cpu().numpy())
+                    all_predictions.extend(scores1.cpu().numpy())
                     all_labels.extend(labels.cpu().numpy())
                     
                     # 收集用于GAUC计算的数据
-                    score_diffs = (scores1 - scores2).cpu().numpy()
-                    all_score_diffs.extend(score_diffs)
+                    # score_diffs = (scores1 - scores1).cpu().numpy()
+                    # all_score_diffs.extend(score_diffs)
+                    all_score_diffs = all_predictions
                     
                     # 收集query信息
                     if 'query' in batch:
