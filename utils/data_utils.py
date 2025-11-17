@@ -539,6 +539,7 @@ class ListwiseDataset(Dataset):
         self.max_length = max_length
         self.max_candidates = max_candidates
         self.sampling_strategy = sampling_strategy
+        logger.info(f'[listwise]max_candidates={max_candidates}, sampling_strategy={sampling_strategy}')
 
         self.processed_data = self._preprocess_data()
     
@@ -757,7 +758,7 @@ class ListwiseDataProcessor:
                           batch_size: int = 8,
                           max_length: int = 256,
                           max_candidates: int = 5,
-                          sampling_strategy: str = "topk",
+                          sampling_strategy: str = "random",
                           shuffle: bool = True) -> DataLoader:
         """
         创建Listwise数据加载器

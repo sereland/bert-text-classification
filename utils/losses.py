@@ -160,3 +160,27 @@ class PairwiseLoss(nn.Module):
         loss = -torch.log(torch.sigmoid(score_diff))
         
         return loss.mean()
+
+if __name__ == "__main__":
+    # 简单测试
+    loss_fn = MaskedListNetLoss(tau=1.0)
+    predicted = torch.tensor([[2.0, 1.0, 0.5, -1e9],
+                              [0.5, 1.5, -1e9, -1e9]])
+    labels = torch.tensor([[3.0, 2.0, 1.0, -1e9],
+                           [1.0, 2.0, -1e9, -1e9]])
+    mask = torch.tensor([[1, 1, 1, 0],
+                         [1, 1, 0, 0]], dtype=torch.bool)
+    
+    loss = loss_fn(predicted, labels, mask)
+    print(f"Masked ListNet Loss: {loss.item()}")
+
+    # 测试损失函数
+    loss_fn = MaskedListNetLoss()
+    
+    # 模拟数据
+    predicted = torch.tensor([[1.0, 2.0, 3.0], [2.0, 1.0, 3.0]])
+    true_labels = torch.tensor([[0.1, 0.2, 0.3], [0.3, 0.1, 0.2]])  # CTR值
+    mask = torch.tensor([[1, 1, 1], [1, 1, 0]])
+    
+    loss = loss_fn(predicted, true_labels, mask)
+    print(f"Test loss: {loss}")
