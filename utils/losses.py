@@ -148,7 +148,12 @@ class PairwiseLoss(nn.Module):
         # # 计算交叉熵损失
         # loss = torch.log(1 + torch.exp(-target * score_diff))
 
-        loss = F.softplus(-score_diff) # 形状: (batch_size, 1)
+        # loss = F.softplus(-score_diff) # 形状: (batch_size, 1)
+        # 计算a比b好的概率
+        prob_a_better = torch.sigmoid(score_diff)
+        
+        # 二分类交叉熵损失
+        loss = F.binary_cross_entropy(prob_a_better, labels.float())
         
         return loss.mean()
     
