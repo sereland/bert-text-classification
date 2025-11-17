@@ -195,7 +195,7 @@ class ModelTrainer:
                     
                     # 计算pairwise损失
                     # loss = self.criterion(scores1, scores2, batch['labels'])
-                    loss = 0
+                    loss = torch.tesnor(0.0)  # 占位符
                     
                     # 收集预测和标签
                     # 对于pairwise任务，预测为text1的得分是否大于text2的得分
