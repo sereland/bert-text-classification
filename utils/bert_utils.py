@@ -201,9 +201,10 @@ class ModelTrainer:
                     # 对于pairwise任务，预测为text1的得分是否大于text2的得分
                     # predictions = (scores1 > scores2).long()  # 使用long类型确保是整数
                     labels = batch['labels']
-                    pred_scors1 = F.sigmoid(scores1)
-                    loss = - labels * torch.log(pred_scors1 + 1e-10)
-                    loss = loss.mean()
+                    # pred_scors1 = F.sigmoid(scores1)
+                    # loss = - labels * torch.log(pred_scors1 + 1e-10)
+                    # loss = loss.mean()
+                    loss = F.binary_cross_entropy_with_logits(scores1, labels.float())
                     
                     all_predictions.extend(scores1.cpu().numpy())
                     all_labels.extend(labels.cpu().numpy())
@@ -299,10 +300,10 @@ class ModelTrainer:
             if all_queries and len(all_queries) == len(all_labels):
                 # 有query信息，计算GAUC和NDCG
                 metrics = RankingMetricsCalculator.calculate_pairwise_metrics(
-                    np.array(all_labels),
-                    np.array(all_predictions),
-                    np.array(all_score_diffs),
-                    all_queries,
+                    all_labels=np.array(all_labels),
+                    all_predictions=np.array(all_predictions),
+                    all_score_diffs=np.array(all_score_diffs),
+                    all_queries=all_queries,
                     k_values=[1, 2, 3, 5]
                 )
             else:

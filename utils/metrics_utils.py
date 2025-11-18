@@ -5,7 +5,7 @@
 
 import numpy as np
 from sklearn.metrics import roc_auc_score, ndcg_score
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -71,282 +71,213 @@ def compute_gauc(all_labels: np.ndarray,
     
     return gauc
 
-def compute_ndcg_k(labels: np.ndarray,
-                  scores: np.ndarray,
-                  k: int = 10) -> float:
+def smart_sample_indices(
+    labels: np.ndarray,
+    sample_size: int,
+    seed: Optional[int] = 42
+) -> np.ndarray:
     """
-    计算NDCG@K
-    
-    Args:
-        labels: 真实相关性分数 [n_samples]
-        scores: 预测分数 [n_samples]
-        k: 截断位置
-        
-    Returns:
-        NDCG@K值，如果样本数<2则返回None
+    智能抽样：保证最大CTR样本一定被选中，其余随机补齐，并打乱顺序（关键！）
     """
-    if len(labels) != len(scores):
-        raise ValueError("labels和scores长度必须相同")
-    
-    if len(labels) == 0:
-        return 0.0
-    
-    # 确保k不超过样本数
-    k = min(k, len(labels))
-    
-    # sklearn的ndcg_score要求至少有2个文档
-    if len(labels) < 2:
-        # 返回None表示跳过此query的计算
-        return None
-    
-    try:
-        # sklearn的ndcg_score需要2D数组
-        # logger.info(f'Computing NDCG@{k} for labels: {labels}, scores: {scores}')
-        ndcg = ndcg_score([labels], [scores], k=k)
-        # logger.info(f'Computed NDCG@{k}: {ndcg}')
-        return ndcg
-    except Exception as e:
-        logger.warning(f"NDCG@{k}计算失败: {e}")
-        return None
+    n = len(labels)
+    if sample_size >= n:
+        return np.arange(n)
 
-def compute_group_ndcg_k(all_labels: List[np.ndarray],
-                       all_scores: List[np.ndarray],
-                       all_queries: List[str],
-                       k: int = 10) -> float:
-    """
-    计算Group NDCG@K（按query分组计算NDCG然后平均）
-    
-    Args:
-        all_labels: 每个query的标签列表
-        all_scores: 每个query的预测分数列表
-        all_queries: query标识列表
-        k: 截断位置
-        
-    Returns:
-        平均NDCG@K值
-    """
-    if len(all_labels) != len(all_scores) or len(all_labels) != len(all_queries):
-        raise ValueError("all_labels, all_scores, all_queries长度必须相同")
-    
-    total_ndcg = 0.0
-    valid_queries = 0
-    skipped_queries = 0
-    
-    for i, q in enumerate(all_queries):
-        labels = all_labels[i]
-        scores = all_scores[i]
-        
-        try:
-            ndcg = compute_ndcg_k(labels, scores, k)
-            if ndcg is not None:
-                total_ndcg += ndcg
-                valid_queries += 1
-            else:
-                skipped_queries += 1
-        except Exception as e:
-            logger.warning(f"Query {q} NDCG@{k}计算失败: {e}")
-            skipped_queries += 1
-            continue
-    
-    if valid_queries == 0:
-        logger.warning("没有有效的query用于计算NDCG@K")
-        return 0.0
-    
-    avg_ndcg = total_ndcg / valid_queries
-    logger.info(f"NDCG@{k}计算完成，有效query数: {valid_queries}, 跳过query数: {skipped_queries}, 总query数: {len(all_queries)}")
-    
-    return avg_ndcg
+    rng = np.random.default_rng(seed)
+    max_idx = np.argmax(labels)
+    remaining = np.setdiff1d(np.arange(n), [max_idx])
 
-def compute_top2_set_accuracy(labels: np.ndarray, scores: np.ndarray, sample_size: int = None) -> float:
-    """
-    计算单个query的top2 set accuracy
-    如果预测和真实值排名前2的集合一致，则返回1.0，否则返回0.0
-    
-    Args:
-        labels: 真实相关性分数 [n_samples]
-        scores: 预测分数 [n_samples]
-        sample_size: 如果指定，则随机抽样指定数量的样本进行计算
-        
-    Returns:
-        top2 set accuracy值，如果样本数不足则返回None
-    """
+    need = sample_size - 1
+    if need <= 0:
+        selected = np.array([max_idx])
+    else:
+        chosen = rng.choice(remaining, size=need, replace=False, shuffle=False)
+        selected = np.concatenate([[max_idx], chosen])
+
+    # 必须打乱！否则Top1会被严重高估
+    rng.shuffle(selected)
+    return selected
+
+
+# ====================== 单query指标（支持抽样） ======================
+def compute_precision_at_1(
+    labels: np.ndarray,
+    scores: np.ndarray,
+    sample_size: Optional[int] = None,
+    seed: Optional[int] = 42
+) -> Optional[float]:
+    """Top-1 Accuracy（真实Top1是否被模型排到第一）"""
     if len(labels) < 2:
         return None
-    
-    rng = np.random.default_rng(2025)
-    # 如果指定了抽样大小且样本数大于抽样大小，则进行随机抽样
+
     if sample_size is not None and len(labels) > sample_size:
-        indices = rng.choice(len(labels), sample_size, replace=False)
-        labels = labels[indices]
-        scores = scores[indices]
-    
-    # 获取真实top2的索引
-    true_top2_indices = set(np.argsort(-labels)[:2])
-    
-    # 获取预测top2的索引  
-    pred_top2_indices = set(np.argsort(-scores)[:2])
-    
-    # 检查两个集合是否相同
-    return 1.0 if true_top2_indices == pred_top2_indices else 0.0
+        idx = smart_sample_indices(labels, sample_size, seed)
+        labels = labels[idx]
+        scores = scores[idx]
 
-def compute_precision_at_1(labels: np.ndarray, scores: np.ndarray, sample_size: int = None) -> float:
-    """
-    计算单个query的Precision@1（基于真实和预测的Top-1一致性）
-    
-    Args:
-        labels: 真实相关性分数 [n_samples]
-        scores: 预测分数 [n_samples]
-        sample_size: 如果指定，则随机抽样指定数量的样本进行计算
-        
-    Returns:
-        Precision@1值，如果样本数不足则返回None
-    """
-    if len(labels) < 2:
-        return None
-    rng = np.random.default_rng(2025)
-    
-    # 如果指定了抽样大小且样本数大于抽样大小，则进行随机抽样
-    if sample_size is not None and len(labels) > sample_size:
-        indices = rng.choice(len(labels), sample_size, replace=False)
-        labels = labels[indices]
-        scores = scores[indices]
-    
-    true_top = np.argmax(labels)     # 真实最高分索引
-    pred_top = np.argmax(scores)     # 预测最高分索引
-
-    return 1.0 if true_top == pred_top else 0.0
-
-def compute_group_precision_at_1(group_labels, group_scores, sample_size: int = None):
-    """
-    计算分组Precision@1，支持抽样
-    
-    Args:
-        group_labels: 每个query的标签列表
-        group_scores: 每个query的预测分数列表
-        sample_size: 抽样大小
-        
-    Returns:
-        平均Precision@1值
-    """
-    total = 0
-    valid = 0
-
-    for labels, scores in zip(group_labels, group_scores):
-        p1 = compute_precision_at_1(labels, scores, sample_size)
-        if p1 is not None:
-            total += p1
-            valid += 1
-
-    if valid == 0:
-        return 0.0
-    
-    logger.info(f'Precision@1计算完成，有效query数: {valid}, 总query数: {len(group_labels)}')
-    return total / valid
-
-def compute_group_top2_set_accuracy(group_labels, group_scores, sample_size: int = None):
-    """
-    计算分组top2 set accuracy，支持抽样
-    
-    Args:
-        group_labels: 每个query的标签列表
-        group_scores: 每个query的预测分数列表
-        sample_size: 抽样大小
-        
-    Returns:
-        平均top2 set accuracy值
-    """
-    total = 0
-    valid = 0
-
-    for labels, scores in zip(group_labels, group_scores):
-        top2_acc = compute_top2_set_accuracy(labels, scores, sample_size)
-        if top2_acc is not None:
-            total += top2_acc
-            valid += 1
-
-    if valid == 0:
-        return 0.0
-    
-    logger.info(f'Top2 Set Accuracy计算完成，有效query数: {valid}, 总query数: {len(group_labels)}')
-    return total / valid
-
-def compute_mrr(labels: np.ndarray, scores: np.ndarray) -> float:
-    """计算单个 query 的 MRR（真实 top 文档在预测排序中的 reciprocal rank）"""
-    if len(labels) < 2:
+    if len(labels) < 2:   # 抽样后可能变成1个
         return None
 
     true_top = np.argmax(labels)
+    pred_top = np.argmax(scores)
+    return 1.0 if true_top == pred_top else 0.0
 
-    # 预测排序
-    pred_rank = np.argsort(-scores)
 
-    # 找到真实 Top 文档在预测排序中的位置（从 1 开始计数）
-    for rank, idx in enumerate(pred_rank, start=1):
+def compute_top2_set_accuracy(
+    labels: np.ndarray,
+    scores: np.ndarray,
+    sample_size: Optional[int] = None,
+    seed: Optional[int] = 42
+) -> Optional[float]:
+    """Top2 Set Accuracy：预测的Top2集合是否和真实完全一致"""
+    if len(labels) < 2:
+        return None
+
+    if sample_size is not None and len(labels) > sample_size:
+        idx = smart_sample_indices(labels, sample_size, seed)
+        labels = labels[idx]
+        scores = scores[idx]
+
+    if len(labels) < 2:
+        return None
+
+    true_top2 = set(np.argsort(-labels)[:2])
+    pred_top2 = set(np.argsort(-scores)[:2])
+    return 1.0 if true_top2 == pred_top2 else 0.0
+
+
+def compute_mrr(
+    labels: np.ndarray,
+    scores: np.ndarray,
+    sample_size: Optional[int] = None,
+    seed: Optional[int] = 42
+) -> Optional[float]:
+    if len(labels) < 2:
+        return None
+
+    if sample_size is not None and len(labels) > sample_size:
+        idx = smart_sample_indices(labels, sample_size, seed)
+        labels = labels[idx]
+        scores = scores[idx]
+
+    true_top = np.argmax(labels)
+    pred_ranks = np.argsort(-scores)
+    for rank, idx in enumerate(pred_ranks, 1):
         if idx == true_top:
             return 1.0 / rank
+    return 0.0
 
-    return 0.0  # 理论上不会发生
 
-def compute_group_mrr(group_labels, group_scores):
-    total = 0
-    valid = 0
+def compute_ndcg_k_single(
+    labels: np.ndarray,
+    scores: np.ndarray,
+    k: int
+) -> float:
+    """单个query的NDCG@K（不抽样，直接用sklearn）"""
+    k = min(k, len(labels))
+    if k == 0:
+        return 0.0
+    try:
+        return ndcg_score([labels], [scores], k=k)
+    except:
+        return 0.0
+
+
+# ====================== Group 级别指标 ======================
+def compute_group_metrics(
+    group_labels: List[np.ndarray],
+    group_scores: List[np.ndarray],
+    sample_size: Optional[int] = None,
+    sample_ndcg: bool = False,          # 新增开关！
+    ndcg_ks: List[int] = None,
+    seed: Optional[int] = 2020
+) -> Dict[str, float]:
+    """
+    统一计算所有分组指标
+    """
+    if ndcg_ks is None:
+        ndcg_ks = [5, 10]
+
+    results = {}
+    total_queries = len(group_labels)
+
+    # --- Precision@1 & Top2 Set Accuracy & MRR ---
+    p1_total, top2_total, mrr_total = 0.0, 0.0, 0.0
+    valid_cnt = 0
 
     for labels, scores in zip(group_labels, group_scores):
-        mrr = compute_mrr(labels, scores)
-        if mrr is not None:
-            total += mrr
-            valid += 1
+        p1 = compute_precision_at_1(labels, scores, sample_size, seed)
+        top2 = compute_top2_set_accuracy(labels, scores, sample_size, seed)
+        mrr = compute_mrr(labels, scores, sample_size, seed)
 
-    if valid == 0:
-        return 0.0
-    
-    logger.info(f'MRR计算完成，有效query数: {valid}, 总query数: {len(group_labels)}')
-    return total / valid
+        if p1 is not None:
+            p1_total += p1
+            top2_total += top2
+            mrr_total += mrr
+            valid_cnt += 1
+
+    if valid_cnt > 0:
+        results['precision@1'] = p1_total / valid_cnt
+        results['top2_set_accuracy'] = top2_total / valid_cnt
+        results['mrr'] = mrr_total / valid_cnt
+    else:
+        results['precision@1'] = results['top2_set_accuracy'] = results['mrr'] = 0.0
+
+    # --- NDCG@K（开关决定是否抽样）---
+    ndcg_totals = {k: 0.0 for k in ndcg_ks}
+    ndcg_valid = {k: 0 for k in ndcg_ks}
+
+    for labels, scores in zip(group_labels, group_scores):
+        cur_labels = labels
+        cur_scores = scores
+        if sample_ndcg and sample_size is not None and len(labels) > sample_size:
+            idx = smart_sample_indices(labels, sample_size, seed)
+            cur_labels = labels[idx]
+            cur_scores = scores[idx]
+
+        for k in ndcg_ks:
+            ndcg = compute_ndcg_k_single(cur_labels, cur_scores, k)
+            ndcg_totals[k] += ndcg
+            ndcg_valid[k] += 1
+
+    for k in ndcg_ks:
+        if ndcg_valid[k] > 0:
+            results[f'ndcg@{k}'] = ndcg_totals[k] / ndcg_valid[k]
+        else:
+            results[f'ndcg@{k}'] = 0.0
+
+    logger.info(f"指标计算完成 | 总query数: {total_queries} | 有效query数(Top1等): {valid_cnt} | "
+                f"sample_size={sample_size} | sample_ndcg={sample_ndcg}")
+    return results
 
 
 class RankingMetricsCalculator:
-    """排序指标计算器"""
-    
     @staticmethod
-    def calculate_pairwise_metrics(all_labels: np.ndarray,
-                                all_predictions: np.ndarray,
-                                all_score_diffs: np.ndarray = None,
-                                all_queries: List[str] = None,
-                                k_values: List[int] = [5, 10],
-                                label_01: bool = False,
-                                sample_size: int = 5) -> Dict[str, float]:
-        """
-        计算pairwise任务的指标
-        
-        Args:
-            all_labels: 真实标签
-            all_predictions: 预测标签（0或1）
-            all_score_diffs: 得分差（用于GAUC）
-            all_queries: query标识（用于GAUC和NDCG）
-            k_values: NDCG的K值列表
-            label_01: 是否为0-1标签
-            sample_size: 抽样大小，用于Precision@1和Top2 Set Accuracy计算
-            
-        Returns:
-            指标字典
-        """
+    def calculate_pairwise_metrics(
+        all_labels: np.ndarray,
+        all_predictions: np.ndarray,          # pairwise 0/1 预测结果
+        all_score_diffs: np.ndarray = None,   # 模型给的排序分数（越高越好）
+        all_queries: Optional[List[str]] = None,
+        k_values: List[int] = None,
+        label_01: bool = False,
+        sample_size: Optional[int] = 5,       # None 表示不对Top1/Top2/MRR抽样
+        sample_ndcg: bool = False,            # <<<< 新增：是否对NDCG也抽样
+        seed: Optional[int] = 2020
+    ) -> Dict[str, float]:
+        if k_values is None:
+            k_values = [5, 10]
+
         metrics = {}
-        if label_01:        
-            # 基础分类指标
-            from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+        # 分类指标（可选）
+        if label_01:
             accuracy = accuracy_score(all_labels, all_predictions)
             precision, recall, f1, _ = precision_recall_fscore_support(
-                all_labels, all_predictions, average='weighted'
+                all_labels, all_predictions, average='weighted', zero_division=0
             )
-            
-            metrics.update({
-                'accuracy': accuracy,
-                'precision': precision,
-                'recall': recall,
-                'f1': f1
-            })
-            
-            # 计算GAUC（如果有query信息和得分差）
+            metrics.update({'accuracy': accuracy, 'precision': precision,
+                            'recall': recall, 'f1': f1})
+
             if all_queries is not None and all_score_diffs is not None:
                 try:
                     gauc = compute_gauc(all_labels, all_score_diffs, all_queries)
@@ -354,47 +285,35 @@ class RankingMetricsCalculator:
                 except Exception as e:
                     logger.warning(f"GAUC计算失败: {e}")
                     metrics['gauc'] = 0.0
-        
-        # 计算NDCG@K（如果有query信息）
-        logger.info(f'k_values for NDCG: {k_values}')
+
+        # 需要按query分组的情况
         if all_queries is not None and all_score_diffs is not None:
-            # 准备分组数据
+            # 分组
             query_to_indices = {}
             for i, q in enumerate(all_queries):
-                if q not in query_to_indices:
-                    query_to_indices[q] = []
-                query_to_indices[q].append(i)
-            
+                query_to_indices.setdefault(q, []).append(i)
+
             group_labels = []
             group_scores = []
-            group_queries = []
-            
-            for q, indices in query_to_indices.items():
-                mask = np.array(indices)
-                query_labels = all_labels[mask]
-                query_scores = all_score_diffs[mask]
-                
-                if len(query_labels) > 0:
-                    group_labels.append(query_labels)
-                    group_scores.append(query_scores)
-                    group_queries.append(q)
-            
-            # 计算NDCG@K
-            for k in k_values:
-                logger.info(f"计算NDCG@{k}...")
-                try:
-                    avg_ndcg = compute_group_ndcg_k(group_labels, group_scores, group_queries, k)
-                    metrics[f'ndcg@{k}'] = avg_ndcg
-                except Exception as e:
-                    logger.warning(f"NDCG@{k}计算失败: {e}")
-                    metrics[f'ndcg@{k}'] = 0.0
 
-            # 计算Precision@1 和 MRR（支持抽样）
-            logger.info(f"计算Precision@1和Top2 Set Accuracy，抽样大小: {sample_size}")
-            metrics['precision@1'] = compute_group_precision_at_1(group_labels, group_scores, sample_size)
-            metrics['top2_set_accuracy'] = compute_group_top2_set_accuracy(group_labels, group_scores, sample_size)
-            metrics['mrr'] = compute_group_mrr(group_labels, group_scores)
-        
+            for q, indices in query_to_indices.items():
+                idx = np.array(indices)
+                group_labels.append(all_labels[idx])
+                group_scores.append(all_score_diffs[idx])
+
+            # 统一计算所有排序指标
+            group_metrics = compute_group_metrics(
+                group_labels=group_labels,
+                group_scores=group_scores,
+                sample_size=sample_size,
+                sample_ndcg=sample_ndcg,      # 这里控制NDCG是否抽样
+                ndcg_ks=k_values,
+                seed=seed
+            )
+            metrics.update(group_metrics)
+        else:
+            logger.warning("缺少 all_queries 或 all_score_diffs，无法计算排序指标")
+
         return metrics
     
     @staticmethod
