@@ -176,11 +176,11 @@ def compute_ndcg_k_single(
     """单个query的NDCG@K（不抽样，直接用sklearn）"""
     k = min(k, len(labels))
     if k == 0:
-        return 0.0
+        return None
     try:
         return ndcg_score([labels], [scores], k=k)
     except:
-        return 0.0
+        return None
 
 
 # ====================== Group 级别指标 ======================
@@ -237,8 +237,9 @@ def compute_group_metrics(
 
         for k in ndcg_ks:
             ndcg = compute_ndcg_k_single(cur_labels, cur_scores, k)
-            ndcg_totals[k] += ndcg
-            ndcg_valid[k] += 1
+            if ndcg:
+                ndcg_totals[k] += ndcg
+                ndcg_valid[k] += 1
 
     for k in ndcg_ks:
         if ndcg_valid[k] > 0:
