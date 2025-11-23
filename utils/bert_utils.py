@@ -321,7 +321,7 @@ class ModelTrainer:
                     np.array(all_predictions),
                     np.array(all_score_diffs),
                     all_queries,
-                    k_values=[3, 5]
+                    k_values=[1, 2, 3, 5]
                 )
                 logger.info(f"rank指标: {metrics}")
                 if self.config.NUM_LABELS == 2: # 分类任务输出01
@@ -426,8 +426,8 @@ class ModelTrainer:
                 logger.warning(f"指标 {criterion} 不在验证结果中，将使用loss")
                 return -val_loss
         elif criterion == 'top1':
-            if 'top1' in val_metrics:
-                return val_metrics.get('top1')
+            if 'precision@1' in val_metrics:
+                return val_metrics.get('precision@1')
             else:
                 logger.warning(f"指标 {criterion} 不在验证结果中，将使用loss")
                 return -val_loss
