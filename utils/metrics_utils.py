@@ -115,10 +115,10 @@ def compute_precision_at_1(
         labels = labels[idx]
         scores = scores[idx]
 
-    if len(labels) < 2:   # 抽样后可能变成1个
+    if len(labels) < 2 or sum(labels) == 0:   # 抽样后可能变成1个
         return None
     
-    logger.info(f'Labels after sampling: {labels}, Scores after sampling: {scores}')
+    # logger.info(f'Labels after sampling: {labels}, Scores after sampling: {scores}')
 
     true_top = np.argmax(labels)
     pred_top = np.argmax(scores)
@@ -140,7 +140,7 @@ def compute_top2_set_accuracy(
         labels = labels[idx]
         scores = scores[idx]
 
-    if len(labels) < 2:
+    if len(labels) < 2 or sum(labels) == 0:
         return None
 
     true_top2 = set(np.argsort(-labels)[:2])

@@ -425,6 +425,12 @@ class ModelTrainer:
             else:
                 logger.warning(f"指标 {criterion} 不在验证结果中，将使用loss")
                 return -val_loss
+        elif criterion == 'top1':
+            if 'top1' in val_metrics:
+                return val_metrics.get('top1')
+            else:
+                logger.warning(f"指标 {criterion} 不在验证结果中，将使用loss")
+                return -val_loss
         else:
             logger.warning(f"未知的指标标准: {criterion}，将使用loss")
             return -val_loss
