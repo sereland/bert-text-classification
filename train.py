@@ -87,7 +87,7 @@ def setup_args():
     # 模型选择参数
     # 模型选择参数
     parser.add_argument("--best_model_criterion", type=str, default="loss",
-                       choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg", "gauc", "ndcg5", "ndcg10"],
+                       choices=["loss", "f1", "accuracy", "r2", "mse", "mae", "rmse", "auc", "ndcg", "gauc", "ndcg5", "ndcg10", "top1"],
                        help="最优模型选择标准")
     # 验证集配置参数
     parser.add_argument("--use_validation_set", action="store_true",
