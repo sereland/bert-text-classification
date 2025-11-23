@@ -117,6 +117,8 @@ def compute_precision_at_1(
 
     if len(labels) < 2:   # 抽样后可能变成1个
         return None
+    
+    logger.info(f'Labels after sampling: {labels}, Scores after sampling: {scores}')
 
     true_top = np.argmax(labels)
     pred_top = np.argmax(scores)

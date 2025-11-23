@@ -178,6 +178,7 @@ class ModelTrainer:
         # 用于GAUC和NDCG计算的额外数据
         all_score_diffs = []  # 用于pairwise任务的GAUC计算
         all_queries = []      # 用于分组计算指标
+        all_pred_scores = []  # 原始预测分数
         
         with torch.no_grad():
             for batch in tqdm(self.val_dataloader, desc="验证"):
@@ -470,7 +471,6 @@ class ModelTrainer:
                     model_batch = {k: v for k, v in batch.items() if k != 'query' and k != 'weight'}
                     outputs = self.model(**model_batch)
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
-                    logger.info(f'weights shape: {weights.shape}, weights values: {weights[:5]}')
                     loss = (loss * weights).mean()
                 else:  # listwise
                     input_ids = batch['input_ids']
