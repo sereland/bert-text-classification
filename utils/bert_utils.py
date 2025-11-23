@@ -417,12 +417,12 @@ class ModelTrainer:
             else:
                 logger.warning(f"指标 {criterion} 不适用于分类或pairwise任务，将使用loss")
                 return -val_loss
-        elif criterion in ['auc', 'ndcg']:
+        elif criterion in ['auc', 'ndcg', 'ndcg1']:
             # pairwise指标：越大越好
-            if self.config.TASK_TYPE == 'pairwise':
-                return val_metrics.get(criterion, 0.0)
+            if criterion in val_metrics:
+                return val_metrics.get(criterion)
             else:
-                logger.warning(f"指标 {criterion} 不适用于分类或回归任务，将使用loss")
+                logger.warning(f"指标 {criterion} 不在验证结果中，将使用loss")
                 return -val_loss
         else:
             logger.warning(f"未知的指标标准: {criterion}，将使用loss")
@@ -470,6 +470,7 @@ class ModelTrainer:
                     model_batch = {k: v for k, v in batch.items() if k != 'query' and k != 'weight'}
                     outputs = self.model(**model_batch)
                     loss = self.criterion(outputs['logits'].view_as(batch['labels']), batch['labels'].float())
+                    logger.info(f'weights shape: {weights.shape}, weights values: {weights[:5]}')
                     loss = (loss * weights).mean()
                 else:  # listwise
                     input_ids = batch['input_ids']
